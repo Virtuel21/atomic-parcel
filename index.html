@@ -402,6 +402,38 @@
             justify-content: center;
         }
 
+        /* Music upload */
+        .music-upload {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .music-upload input[type="file"] {
+            color: #fff;
+            background: rgba(0, 0, 0, 0.35);
+            border: 2px dashed #ff6b35;
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+        }
+
+        .track-status {
+            font-size: 0.95rem;
+            color: #ffd700;
+        }
+
+        .track-status span {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .music-hint {
+            color: #aaa;
+            font-size: 0.85rem;
+        }
+
         .menu-btn {
             padding: 15px 40px;
             font-size: 1.3rem;
@@ -745,6 +777,16 @@
                 <p style="color: #888; font-size: 0.9rem; margin-top: 10px;">Cliquez sur une touche pour la modifier</p>
             </div>
 
+            <div class="instructions">
+                <h3>Votre musique</h3>
+                <p>Chargez une chanson pour caler l'apparition des colis sur votre rythme.</p>
+                <div class="music-upload">
+                    <input type="file" id="music-upload" accept="audio/*">
+                    <div class="track-status">Piste: <span id="track-status">Aucune</span></div>
+                    <div class="music-hint">La détection de beat adapte le tempo automatiquement.</div>
+                </div>
+            </div>
+
             <div class="menu-buttons">
                 <button class="menu-btn" id="start-btn">COMMENCER LE CHAOS</button>
             </div>
@@ -929,7 +971,9 @@
             keyCubeBtn: document.getElementById('key-cube-btn'),
             keySphereBtn: document.getElementById('key-sphere-btn'),
             keyPizzaBtn: document.getElementById('key-pizza-btn'),
-            keyUltBtn: document.getElementById('key-ult-btn')
+            keyUltBtn: document.getElementById('key-ult-btn'),
+            musicUpload: document.getElementById('music-upload'),
+            trackStatus: document.getElementById('track-status')
         };
 
         // Three.js variables
@@ -944,6 +988,10 @@
         // Audio context
         let audioContext;
         let gainNode;
+        let analyserNode;
+        let userTrack;
+        let userTrackSource;
+        let useUserTrack = false;
 
         // Beat notes on screen
         let beatNotes = [];
@@ -951,6 +999,15 @@
 
         // Key binding listener
         let listeningForKey = null;
+
+        // Beat detection state
+        const beatDetector = {
+            energyAvg: 0,
+            lastBeatTime: 0,
+            prevBeatTime: 0,
+            minInterval: 0.28,
+            sensitivity: 1.35
+        };
 
         // Get display name for key
         function getKeyDisplayName(key) {
@@ -1214,7 +1271,10 @@
             const shellMaterial = new THREE.MeshStandardMaterial({
                 color: 0xeeeeee,
                 roughness: 0.3,
-                metalness: 0.2
+                metalness: 0.2,
+                transparent: true,
+                opacity: 0.18,
+                depthWrite: false
             });
             const shell = new THREE.Mesh(shellGeometry, shellMaterial);
             shell.position.set(0, trailerHeight / 2 + 0.8, -trailerLength / 2 + 2);
@@ -1291,11 +1351,11 @@
             truck.add(ledRight);
 
             // Interior lights
-            const interiorLight1 = new THREE.PointLight(0xffffdd, 0.6, 12);
+            const interiorLight1 = new THREE.PointLight(0xffffdd, 0.9, 12);
             interiorLight1.position.set(0, trailerHeight + 0.3, -2);
             truck.add(interiorLight1);
 
-            const interiorLight2 = new THREE.PointLight(0xffffdd, 0.4, 10);
+            const interiorLight2 = new THREE.PointLight(0xffffdd, 0.6, 10);
             interiorLight2.position.set(0, trailerHeight + 0.3, -5);
             truck.add(interiorLight2);
 
@@ -1498,6 +1558,67 @@
             gainNode = audioContext.createGain();
             gainNode.connect(audioContext.destination);
             gainNode.gain.value = 0.3;
+        }
+
+        function updateTrackStatus(name, active = false) {
+            elements.trackStatus.textContent = name;
+            elements.trackStatus.style.color = active ? '#00ff88' : '#fff';
+        }
+
+        function setupUserTrack(file) {
+            if (!audioContext) {
+                initAudio();
+            }
+
+            if (!userTrack) {
+                userTrack = new Audio();
+                userTrack.preload = 'auto';
+                userTrack.loop = false;
+                userTrack.addEventListener('ended', () => {
+                    useUserTrack = false;
+                    updateTrackStatus('Terminée', false);
+                });
+            }
+
+            const url = URL.createObjectURL(file);
+            userTrack.src = url;
+            userTrack.load();
+
+            userTrack.addEventListener('canplaythrough', () => {
+                if (!analyserNode) {
+                    analyserNode = audioContext.createAnalyser();
+                    analyserNode.fftSize = 1024;
+                }
+
+                if (!userTrackSource) {
+                    userTrackSource = audioContext.createMediaElementSource(userTrack);
+                    userTrackSource.connect(analyserNode);
+                    analyserNode.connect(gainNode);
+                }
+
+                useUserTrack = true;
+                updateTrackStatus(file.name, true);
+            }, { once: true });
+        }
+
+        function handleMusicUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            setupUserTrack(file);
+        }
+
+        function playUserTrack(reset = false) {
+            if (!userTrack || !useUserTrack) return;
+            if (reset) {
+                userTrack.currentTime = 0;
+            }
+            userTrack.play();
+        }
+
+        function pauseUserTrack() {
+            if (userTrack && !userTrack.paused) {
+                userTrack.pause();
+            }
         }
 
         // Play a beat sound
@@ -1833,6 +1954,36 @@
             });
 
             gameState.totalNotes++;
+        }
+
+        function detectBeat() {
+            if (!analyserNode || !audioContext) return;
+
+            const data = new Uint8Array(analyserNode.frequencyBinCount);
+            analyserNode.getByteFrequencyData(data);
+
+            let sum = 0;
+            const lowBins = 12;
+            for (let i = 0; i < lowBins; i++) {
+                sum += data[i];
+            }
+            const energy = sum / lowBins;
+            beatDetector.energyAvg = beatDetector.energyAvg * 0.9 + energy * 0.1;
+
+            const threshold = beatDetector.energyAvg * beatDetector.sensitivity + 5;
+            const now = audioContext.currentTime;
+
+            if (energy > threshold && (now - beatDetector.lastBeatTime) > beatDetector.minInterval) {
+                beatDetector.prevBeatTime = beatDetector.lastBeatTime || now;
+                beatDetector.lastBeatTime = now;
+                createBeatNote();
+
+                const interval = (beatDetector.lastBeatTime - beatDetector.prevBeatTime) * 1000;
+                if (interval > 100) {
+                    gameState.beatInterval = interval;
+                    gameState.bpm = Math.round(60000 / interval);
+                }
+            }
         }
 
         // Update beat notes positions
@@ -2174,6 +2325,7 @@
         function pauseGame() {
             gameState.isPaused = true;
             elements.pauseScreen.style.display = 'flex';
+            pauseUserTrack();
         }
 
         // Resume game
@@ -2181,6 +2333,7 @@
             gameState.isPaused = false;
             elements.pauseScreen.style.display = 'none';
             lastTime = performance.now();
+            playUserTrack();
             requestAnimationFrame(gameLoop);
         }
 
@@ -2202,7 +2355,7 @@
                 pkg.lifetime += deltaTime;
 
                 // Remove old packages
-                if (pkg.lifetime > 10) {
+                if (pkg.lifetime > 20) {
                     scene.remove(pkg.mesh);
                     world.removeBody(pkg.body);
                     packages.splice(i, 1);
@@ -2273,7 +2426,11 @@
             }
 
             // Spawn notes
-            spawnBeatNotes(time);
+            if (useUserTrack && userTrack && !userTrack.paused) {
+                detectBeat();
+            } else {
+                spawnBeatNotes(time);
+            }
 
             // Update beat notes
             updateBeatNotes(deltaTime);
@@ -2285,7 +2442,7 @@
             updatePhysics(deltaTime);
 
             // Play beat sounds
-            if (time - gameState.lastBeatTime > gameState.beatInterval) {
+            if (!useUserTrack && time - gameState.lastBeatTime > gameState.beatInterval) {
                 playBackgroundBeat();
                 gameState.lastBeatTime = time;
             }
@@ -2314,6 +2471,9 @@
             gameState.isPaused = false;
             gameTime = 0;
             lastNoteSpawn = 0;
+            beatDetector.energyAvg = 0;
+            beatDetector.lastBeatTime = 0;
+            beatDetector.prevBeatTime = 0;
 
             // Clear existing
             beatNotes.forEach(n => n.element.remove());
@@ -2345,6 +2505,7 @@
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
+            playUserTrack(true);
 
             // Start game loop
             lastTime = performance.now();
@@ -2354,6 +2515,7 @@
         // End game
         function endGame() {
             gameState.isPlaying = false;
+            pauseUserTrack();
 
             // Show game over screen
             elements.gameOverScreen.style.display = 'flex';
@@ -2372,6 +2534,7 @@
         function goToMenu() {
             gameState.isPlaying = false;
             gameState.isPaused = false;
+            pauseUserTrack();
             elements.startScreen.classList.remove('hidden');
             elements.gameOverScreen.style.display = 'none';
             elements.pauseScreen.style.display = 'none';
@@ -2393,6 +2556,8 @@
             document.addEventListener('keydown', handleKeyDown);
             document.addEventListener('keyup', handleKeyUp);
             document.addEventListener('mousemove', handleMouseMove);
+            elements.musicUpload.addEventListener('change', handleMusicUpload);
+            updateTrackStatus('Aucune', false);
 
             // Initial render
             renderer.render(scene, camera);
