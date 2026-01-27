@@ -461,6 +461,55 @@
             font-size: 0.85rem;
         }
 
+        .analysis-tool {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 550px;
+            width: 100%;
+        }
+
+        .analysis-tool h3 {
+            color: #7bdff6;
+            margin-bottom: 10px;
+        }
+
+        .analysis-tool .analysis-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .analysis-tool button {
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            background: #2c5aa0;
+            color: #fff;
+        }
+
+        .analysis-tool button.secondary {
+            background: #444;
+        }
+
+        .analysis-tool button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .analysis-status {
+            font-size: 0.95rem;
+            color: #ddd;
+            margin-top: 8px;
+        }
+
+        .analysis-status strong {
+            color: #ffd700;
+        }
+
         .menu-btn {
             padding: 15px 40px;
             font-size: 1.3rem;
@@ -805,13 +854,27 @@
             </div>
 
             <div class="instructions">
-                <h3>Votre musique</h3>
-                <p>Chargez une chanson pour caler l'apparition des colis sur votre rythme.</p>
+                <h3>Votre musique (analyse)</h3>
+                <p>Importez une chanson pour générer une map jouable calée sur le tempo.</p>
                 <div class="music-upload">
-                    <input type="file" id="music-upload" accept="audio/*">
+                    <input type="file" id="analysis-upload" accept="audio/*">
                     <div class="track-status">Piste: <span id="track-status">Aucune</span></div>
-                    <div class="music-hint">La détection de beat adapte le tempo automatiquement.</div>
+                    <div class="music-hint">L'analyse détecte les temps forts et ajuste la densité selon la difficulté.</div>
                 </div>
+            </div>
+
+            <div class="analysis-tool">
+                <h3>Génération de map</h3>
+                <p class="music-hint">Lancez l'analyse pour générer les notes jouables directement en jeu.</p>
+                <div class="analysis-actions">
+                    <button id="analyze-btn">Analyser & générer</button>
+                </div>
+                <div class="analysis-status">
+                    BPM estimé : <strong id="analysis-bpm">--</strong> |
+                    Notes quantifiées : <strong id="analysis-notes">0</strong> |
+                    Décalage : <strong id="analysis-offset">--</strong>
+                </div>
+                <div class="analysis-status" id="analysis-message">Aucune analyse en cours.</div>
             </div>
 
             <div class="instructions">
@@ -981,6 +1044,10 @@
         // Constants
         const ULTIMATE_CHARGE_REQUIRED = 25;
         const ULTIMATE_DURATION = 10000; // 10 seconds
+        const NOTE_SPEED = 300;
+        const NOTE_HIT_ZONE = 300;
+        const NOTE_SPAWN_OFFSET = 70;
+        const NOTE_TRAVEL_TIME = (NOTE_HIT_ZONE + NOTE_SPAWN_OFFSET) / NOTE_SPEED;
 
         // DOM elements
         const elements = {
@@ -1022,9 +1089,14 @@
             keySphereBtn: document.getElementById('key-sphere-btn'),
             keyPizzaBtn: document.getElementById('key-pizza-btn'),
             keyUltBtn: document.getElementById('key-ult-btn'),
-            musicUpload: document.getElementById('music-upload'),
             trackStatus: document.getElementById('track-status'),
-            difficultyButtons: document.querySelectorAll('.difficulty-btn')
+            difficultyButtons: document.querySelectorAll('.difficulty-btn'),
+            analysisUpload: document.getElementById('analysis-upload'),
+            analyzeBtn: document.getElementById('analyze-btn'),
+            analysisBpm: document.getElementById('analysis-bpm'),
+            analysisNotes: document.getElementById('analysis-notes'),
+            analysisOffset: document.getElementById('analysis-offset'),
+            analysisMessage: document.getElementById('analysis-message')
         };
 
         // Three.js variables
@@ -1043,6 +1115,18 @@
         let userTrack;
         let userTrackSource;
         let useUserTrack = false;
+
+        // Analysis tool state
+        let analysisBuffer = null;
+        let analysisResults = {
+            bpm: 0,
+            offset: 0,
+            rawNotes: [],
+            notes: [],
+            onsets: [],
+            subdivision: 4
+        };
+        let analysisNoteIndex = 0;
 
         // Beat notes on screen
         let beatNotes = [];
@@ -1092,6 +1176,7 @@
             elements.difficultyButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.difficulty === selected);
             });
+            refreshAnalysisNotes();
         }
 
         // Key binding click handlers
@@ -1546,10 +1631,287 @@
             }, { once: true });
         }
 
-        function handleMusicUpload(e) {
+        function updateAnalysisMessage(message, isError = false) {
+            elements.analysisMessage.textContent = message;
+            elements.analysisMessage.style.color = isError ? '#ff6b6b' : '#ddd';
+        }
+
+        function handleAnalysisUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
+            if (!audioContext) {
+                initAudio();
+            }
+            elements.analysisBpm.textContent = '--';
+            elements.analysisNotes.textContent = '0';
+            elements.analysisOffset.textContent = '--';
+            updateAnalysisMessage('Chargement du fichier audio...');
             setupUserTrack(file);
+            analysisNoteIndex = 0;
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const arrayBuffer = reader.result;
+                    analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    analysisResults = {
+                        bpm: 0,
+                        offset: 0,
+                        rawNotes: [],
+                        notes: [],
+                        onsets: [],
+                        subdivision: 4
+                    };
+                    analysisBuffer.fileName = file.name;
+                    updateAnalysisMessage('Fichier prêt pour analyse.');
+                } catch (error) {
+                    updateAnalysisMessage('Impossible de décoder ce fichier audio.', true);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function applyHannWindow(buffer, offset, size) {
+            const windowed = new Float32Array(size);
+            for (let i = 0; i < size; i++) {
+                const sample = buffer[offset + i] || 0;
+                const multiplier = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (size - 1)));
+                windowed[i] = sample * multiplier;
+            }
+            return windowed;
+        }
+
+        function fft(real, imag) {
+            const n = real.length;
+            const logN = Math.log2(n);
+            for (let i = 0; i < n; i++) {
+                const j = reverseBits(i, logN);
+                if (j > i) {
+                    [real[i], real[j]] = [real[j], real[i]];
+                    [imag[i], imag[j]] = [imag[j], imag[i]];
+                }
+            }
+            for (let size = 2; size <= n; size *= 2) {
+                const halfSize = size / 2;
+                const tableStep = Math.PI * 2 / size;
+                for (let i = 0; i < n; i += size) {
+                    for (let j = 0; j < halfSize; j++) {
+                        const angle = tableStep * j;
+                        const wr = Math.cos(angle);
+                        const wi = -Math.sin(angle);
+                        const k = i + j;
+                        const l = k + halfSize;
+                        const tr = wr * real[l] - wi * imag[l];
+                        const ti = wr * imag[l] + wi * real[l];
+                        real[l] = real[k] - tr;
+                        imag[l] = imag[k] - ti;
+                        real[k] += tr;
+                        imag[k] += ti;
+                    }
+                }
+            }
+        }
+
+        function reverseBits(x, bits) {
+            let y = 0;
+            for (let i = 0; i < bits; i++) {
+                y = (y << 1) | (x & 1);
+                x >>= 1;
+            }
+            return y;
+        }
+
+        function detectOnsets(audioBuffer) {
+            const sampleRate = audioBuffer.sampleRate;
+            const channelData = audioBuffer.numberOfChannels === 1
+                ? audioBuffer.getChannelData(0)
+                : mixToMono(audioBuffer);
+            const fftSize = 2048;
+            const hopSize = 512;
+            const frameCount = Math.floor((channelData.length - fftSize) / hopSize);
+            const prevMag = new Float32Array(fftSize / 2);
+            const flux = [];
+
+            for (let frame = 0; frame < frameCount; frame++) {
+                const offset = frame * hopSize;
+                const windowed = applyHannWindow(channelData, offset, fftSize);
+                const real = Array.from(windowed);
+                const imag = new Array(fftSize).fill(0);
+                fft(real, imag);
+
+                let sum = 0;
+                for (let i = 0; i < fftSize / 2; i++) {
+                    const mag = Math.hypot(real[i], imag[i]);
+                    const diff = mag - prevMag[i];
+                    if (diff > 0) {
+                        sum += diff;
+                    }
+                    prevMag[i] = mag;
+                }
+                flux.push(sum);
+            }
+
+            const windowSize = 16;
+            const onsets = [];
+            for (let i = 1; i < flux.length - 1; i++) {
+                const start = Math.max(0, i - windowSize);
+                const end = Math.min(flux.length, i + windowSize);
+                let mean = 0;
+                for (let j = start; j < end; j++) {
+                    mean += flux[j];
+                }
+                mean /= (end - start);
+                const threshold = mean * 1.5;
+                if (flux[i] > threshold && flux[i] > flux[i - 1] && flux[i] > flux[i + 1]) {
+                    const time = (i * hopSize) / sampleRate;
+                    onsets.push(time);
+                }
+            }
+            return onsets;
+        }
+
+        function mixToMono(buffer) {
+            const length = buffer.length;
+            const data = new Float32Array(length);
+            for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+                const channel = buffer.getChannelData(ch);
+                for (let i = 0; i < length; i++) {
+                    data[i] += channel[i] / buffer.numberOfChannels;
+                }
+            }
+            return data;
+        }
+
+        function estimateBpm(onsets) {
+            if (onsets.length < 2) return 120;
+            const histogram = new Map();
+            for (let i = 1; i < onsets.length; i++) {
+                const interval = onsets[i] - onsets[i - 1];
+                if (interval <= 0.05) continue;
+                let bpm = 60 / interval;
+                while (bpm < 60) bpm *= 2;
+                while (bpm > 180) bpm /= 2;
+                const rounded = Math.round(bpm);
+                histogram.set(rounded, (histogram.get(rounded) || 0) + 1);
+            }
+            let bestBpm = 120;
+            let bestCount = 0;
+            histogram.forEach((count, bpm) => {
+                if (count > bestCount) {
+                    bestCount = count;
+                    bestBpm = bpm;
+                }
+            });
+            return bestBpm;
+        }
+
+        function quantizeOnsets(onsets, bpm, subdivision = 4) {
+            const beatInterval = 60 / bpm;
+            const gridInterval = beatInterval / subdivision;
+            const offset = onsets.length ? onsets[0] : 0;
+            const quantized = new Map();
+            onsets.forEach((time) => {
+                const q = Math.round((time - offset) / gridInterval) * gridInterval + offset;
+                if (q < 0) return;
+                const key = Math.round(q * 1000);
+                quantized.set(key, q);
+            });
+            const times = Array.from(quantized.values()).sort((a, b) => a - b);
+            return { times, offset, gridInterval };
+        }
+
+        function assignLanes(times, gridInterval) {
+            const lanes = ['cube', 'sphere', 'pizza'];
+            const lastLaneTime = {
+                cube: -Infinity,
+                sphere: -Infinity,
+                pizza: -Infinity
+            };
+            let laneIndex = 0;
+            const minLaneGap = gridInterval * 0.75;
+            const notes = [];
+
+            times.forEach((time) => {
+                let chosenLane = null;
+                for (let i = 0; i < lanes.length; i++) {
+                    const lane = lanes[(laneIndex + i) % lanes.length];
+                    if (time - lastLaneTime[lane] >= minLaneGap) {
+                        chosenLane = lane;
+                        laneIndex = (laneIndex + i + 1) % lanes.length;
+                        break;
+                    }
+                }
+                if (!chosenLane) {
+                    chosenLane = lanes[laneIndex % lanes.length];
+                    laneIndex = (laneIndex + 1) % lanes.length;
+                }
+                lastLaneTime[chosenLane] = time;
+                notes.push({
+                    time: Number(time.toFixed(3)),
+                    lane: chosenLane
+                });
+            });
+            return notes;
+        }
+
+        function applyDifficultyFilter(notes) {
+            if (!notes.length) return [];
+            if (maxNotesPerSecond <= 0) return [];
+            const perSecondCount = new Map();
+            const filtered = [];
+            notes.forEach((note) => {
+                const secondBucket = Math.floor(note.time);
+                const currentCount = perSecondCount.get(secondBucket) || 0;
+                if (currentCount >= maxNotesPerSecond) return;
+                perSecondCount.set(secondBucket, currentCount + 1);
+                filtered.push({ ...note });
+            });
+            return filtered;
+        }
+
+        function buildPlayableNotes(notes) {
+            const filtered = applyDifficultyFilter(notes);
+            return filtered.map((note) => ({
+                ...note,
+                spawnTime: Math.max(0, note.time - NOTE_TRAVEL_TIME)
+            }));
+        }
+
+        function refreshAnalysisNotes() {
+            if (!analysisResults.rawNotes.length) return;
+            analysisResults.notes = buildPlayableNotes(analysisResults.rawNotes);
+            elements.analysisNotes.textContent = analysisResults.notes.length.toString();
+            analysisNoteIndex = 0;
+            updateAnalysisMessage('Densité ajustée selon la difficulté.');
+        }
+
+        async function analyzeCurrentTrack() {
+            if (!analysisBuffer) {
+                updateAnalysisMessage('Importez une musique avant de lancer l\'analyse.', true);
+                return;
+            }
+            updateAnalysisMessage('Analyse en cours... cela peut prendre quelques secondes.');
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            const onsets = detectOnsets(analysisBuffer);
+            const bpm = estimateBpm(onsets);
+            const { times, offset, gridInterval } = quantizeOnsets(onsets, bpm, analysisResults.subdivision);
+            const rawNotes = assignLanes(times, gridInterval);
+            const notes = buildPlayableNotes(rawNotes);
+
+            analysisResults = {
+                bpm,
+                offset,
+                rawNotes,
+                notes,
+                onsets,
+                subdivision: analysisResults.subdivision
+            };
+            analysisNoteIndex = 0;
+
+            elements.analysisBpm.textContent = bpm.toString();
+            elements.analysisNotes.textContent = notes.length.toString();
+            elements.analysisOffset.textContent = `${offset.toFixed(2)}s`;
+            updateAnalysisMessage(`Analyse terminée : ${notes.length} notes jouables.`);
         }
 
         function playUserTrack(reset = false) {
@@ -1877,15 +2239,15 @@
         }
 
         // Create a beat note on the rhythm bar
-        function createBeatNote() {
+        function createBeatNote(forcedType = null) {
             const types = ['cube', 'sphere', 'pizza'];
-            const type = types[Math.floor(Math.random() * types.length)];
+            const type = forcedType || types[Math.floor(Math.random() * types.length)];
 
             const note = document.createElement('div');
             note.className = `beat-note ${type}`;
             note.dataset.id = noteId++;
             note.dataset.type = type;
-            note.style.right = '-70px';
+            note.style.right = `-${NOTE_SPAWN_OFFSET}px`;
 
             let keyText = getKeyDisplayName(keyBindings[type]);
             note.textContent = keyText;
@@ -1894,7 +2256,7 @@
             beatNotes.push({
                 element: note,
                 type: type,
-                position: -70,
+                position: -NOTE_SPAWN_OFFSET,
                 hit: false
             });
 
@@ -1913,13 +2275,24 @@
             noteSpawnTimestamps.push(performance.now());
         }
 
-        function spawnNoteIfAllowed(force = false) {
+        function spawnNoteIfAllowed(force = false, forcedType = null) {
             if (force || canSpawnNote()) {
-                createBeatNote();
+                createBeatNote(forcedType);
                 registerNoteSpawn();
                 return true;
             }
             return false;
+        }
+
+        function spawnAnalyzedNotes(currentTime) {
+            while (analysisNoteIndex < analysisResults.notes.length) {
+                const nextNote = analysisResults.notes[analysisNoteIndex];
+                if (currentTime < nextNote.spawnTime) {
+                    break;
+                }
+                createBeatNote(nextNote.lane);
+                analysisNoteIndex++;
+            }
         }
 
         function detectBeat() {
@@ -1963,7 +2336,6 @@
             if (energy > threshold && (now - beatDetector.lastBeatTime) > beatDetector.minInterval) {
                 beatDetector.prevBeatTime = beatDetector.lastBeatTime || now;
                 beatDetector.lastBeatTime = now;
-                spawnNoteIfAllowed();
 
                 const interval = (beatDetector.lastBeatTime - beatDetector.prevBeatTime) * 1000;
                 if (interval > 100) {
@@ -1977,8 +2349,8 @@
 
         // Update beat notes positions
         function updateBeatNotes(deltaTime) {
-            const speed = 300;
-            const hitZone = 300;
+            const speed = NOTE_SPEED;
+            const hitZone = NOTE_HIT_ZONE;
             const okWindow = 120;
 
             for (let i = beatNotes.length - 1; i >= 0; i--) {
@@ -1986,7 +2358,7 @@
                 if (note.hit) continue;
 
                 note.position += speed * deltaTime;
-                note.element.style.right = (-70 + note.position) + 'px';
+                note.element.style.right = (-NOTE_SPAWN_OFFSET + note.position) + 'px';
 
                 // Ultimate mode - auto hit
                 if (gameState.ultimateActive) {
@@ -2046,7 +2418,7 @@
 
         // Check if a key press hits a note
         function checkNoteHit(type) {
-            const hitZone = 300;
+            const hitZone = NOTE_HIT_ZONE;
             const hitWindow = 40;
             const goodWindow = 70;
             const okWindow = 100;
@@ -2431,9 +2803,14 @@
 
             // Spawn notes
             if (useUserTrack && userTrack && !userTrack.paused) {
-                const beatHit = detectBeat();
-                if (audioContext) {
-                    spawnBeatNotesFromTrack(audioContext.currentTime * 1000, beatHit);
+                const currentTime = userTrack.currentTime;
+                if (analysisResults.notes.length) {
+                    spawnAnalyzedNotes(currentTime);
+                } else {
+                    const beatHit = detectBeat();
+                    if (audioContext) {
+                        spawnBeatNotesFromTrack(audioContext.currentTime * 1000, beatHit);
+                    }
                 }
             } else {
                 spawnBeatNotes(time);
@@ -2480,6 +2857,7 @@
             lastNoteSpawn = 0;
             lastNoteSpawnAudio = 0;
             noteSpawnTimestamps.length = 0;
+            analysisNoteIndex = 0;
             beatDetector.energyAvg = 0;
             beatDetector.energyHistory = [];
             beatDetector.lastBeatTime = 0;
@@ -2568,7 +2946,8 @@
             document.addEventListener('keydown', handleKeyDown);
             document.addEventListener('keyup', handleKeyUp);
             document.addEventListener('mousemove', handleMouseMove);
-            elements.musicUpload.addEventListener('change', handleMusicUpload);
+            elements.analysisUpload.addEventListener('change', handleAnalysisUpload);
+            elements.analyzeBtn.addEventListener('click', analyzeCurrentTrack);
             updateTrackStatus('Aucune', false);
 
             // Initial render
