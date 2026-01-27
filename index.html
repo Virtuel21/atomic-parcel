@@ -402,6 +402,32 @@
             justify-content: center;
         }
 
+        .difficulty-select {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .difficulty-btn {
+            padding: 10px 18px;
+            border-radius: 20px;
+            border: 2px solid #555;
+            background: rgba(0, 0, 0, 0.35);
+            color: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+
+        .difficulty-btn.active,
+        .difficulty-btn:hover {
+            border-color: #ff6b35;
+            box-shadow: 0 0 15px rgba(255, 107, 53, 0.6);
+            background: rgba(255, 107, 53, 0.2);
+        }
+
         /* Music upload */
         .music-upload {
             display: flex;
@@ -787,6 +813,17 @@
                 </div>
             </div>
 
+            <div class="instructions">
+                <h3>Difficulté</h3>
+                <p>Choisissez la densité de notes par seconde.</p>
+                <div class="difficulty-select">
+                    <button class="difficulty-btn" data-difficulty="easy">EASY (0-3/s)</button>
+                    <button class="difficulty-btn active" data-difficulty="middle">MIDDLE (4-5/s)</button>
+                    <button class="difficulty-btn" data-difficulty="hard">HARD (6-7/s)</button>
+                    <button class="difficulty-btn" data-difficulty="extreme">EXTREME (10/s)</button>
+                </div>
+            </div>
+
             <div class="menu-buttons">
                 <button class="menu-btn" id="start-btn">COMMENCER LE CHAOS</button>
             </div>
@@ -928,6 +965,18 @@
             comboPower: 1 // Multiplier for throw power based on combo
         };
 
+        const difficultySettings = {
+            easy: { min: 0, max: 3 },
+            middle: { min: 4, max: 5 },
+            hard: { min: 6, max: 7 },
+            extreme: { min: 10, max: 10 }
+        };
+
+        let currentDifficulty = 'middle';
+        let maxNotesPerSecond = difficultySettings[currentDifficulty].max;
+        let minNotesPerSecond = difficultySettings[currentDifficulty].min;
+        const noteSpawnTimestamps = [];
+
         // Constants
         const ULTIMATE_CHARGE_REQUIRED = 25;
         const ULTIMATE_DURATION = 10000; // 10 seconds
@@ -973,7 +1022,8 @@
             keyPizzaBtn: document.getElementById('key-pizza-btn'),
             keyUltBtn: document.getElementById('key-ult-btn'),
             musicUpload: document.getElementById('music-upload'),
-            trackStatus: document.getElementById('track-status')
+            trackStatus: document.getElementById('track-status'),
+            difficultyButtons: document.querySelectorAll('.difficulty-btn')
         };
 
         // Three.js variables
@@ -1003,10 +1053,12 @@
         // Beat detection state
         const beatDetector = {
             energyAvg: 0,
+            energyHistory: [],
             lastBeatTime: 0,
             prevBeatTime: 0,
-            minInterval: 0.28,
-            sensitivity: 1.35
+            minInterval: 0.18,
+            sensitivity: 1.15,
+            historySize: 45
         };
 
         // Get display name for key
@@ -1031,6 +1083,16 @@
             elements.keyUltBtn.textContent = getKeyDisplayName(keyBindings.ultimate);
         }
 
+        function updateDifficultySelection(selected) {
+            currentDifficulty = selected;
+            const settings = difficultySettings[selected];
+            minNotesPerSecond = settings.min;
+            maxNotesPerSecond = settings.max;
+            elements.difficultyButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.difficulty === selected);
+            });
+        }
+
         // Key binding click handlers
         function setupKeyBindingListeners() {
             document.querySelectorAll('.key-config-btn').forEach(btn => {
@@ -1042,6 +1104,14 @@
                     btn.classList.add('listening');
                     listeningForKey = btn.dataset.action;
                     btn.textContent = '...';
+                });
+            });
+        }
+
+        function setupDifficultyListeners() {
+            elements.difficultyButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    updateDifficultySelection(btn.dataset.difficulty);
                 });
             });
         }
@@ -1270,10 +1340,10 @@
             const shellGeometry = new THREE.BoxGeometry(trailerWidth + 0.2, trailerHeight + 0.2, trailerLength);
             const shellMaterial = new THREE.MeshStandardMaterial({
                 color: 0xeeeeee,
-                roughness: 0.3,
+                roughness: 0.35,
                 metalness: 0.2,
                 transparent: true,
-                opacity: 0.18,
+                opacity: 0.22,
                 depthWrite: false
             });
             const shell = new THREE.Mesh(shellGeometry, shellMaterial);
@@ -1426,6 +1496,32 @@
             );
             bottomFrame.position.set(0, 0.8, 2.1);
             truck.add(bottomFrame);
+
+            // Dock bumpers for loading bay
+            const bumperGeometry = new THREE.BoxGeometry(0.25, 0.8, 0.2);
+            const bumperMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.9
+            });
+            const bumperLeft = new THREE.Mesh(bumperGeometry, bumperMaterial);
+            bumperLeft.position.set(-trailerWidth / 2 - 0.25, 1.2, 2.05);
+            truck.add(bumperLeft);
+
+            const bumperRight = bumperLeft.clone();
+            bumperRight.position.x = trailerWidth / 2 + 0.25;
+            truck.add(bumperRight);
+
+            // Dock plate at the entrance
+            const plateGeometry = new THREE.BoxGeometry(trailerWidth - 0.2, 0.05, 0.6);
+            const plateMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666677,
+                roughness: 0.4,
+                metalness: 0.6
+            });
+            const dockPlate = new THREE.Mesh(plateGeometry, plateMaterial);
+            dockPlate.position.set(0, 0.83, 2.35);
+            dockPlate.rotation.x = -0.12;
+            truck.add(dockPlate);
 
             // Wheels
             const wheelGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 24);
@@ -1588,6 +1684,7 @@
                 if (!analyserNode) {
                     analyserNode = audioContext.createAnalyser();
                     analyserNode.fftSize = 1024;
+                    analyserNode.smoothingTimeConstant = 0.85;
                 }
 
                 if (!userTrackSource) {
@@ -1956,34 +2053,78 @@
             gameState.totalNotes++;
         }
 
-        function detectBeat() {
-            if (!analyserNode || !audioContext) return;
+        function canSpawnNote() {
+            const now = performance.now();
+            while (noteSpawnTimestamps.length && now - noteSpawnTimestamps[0] > 1000) {
+                noteSpawnTimestamps.shift();
+            }
+            return noteSpawnTimestamps.length < maxNotesPerSecond;
+        }
 
-            const data = new Uint8Array(analyserNode.frequencyBinCount);
-            analyserNode.getByteFrequencyData(data);
+        function registerNoteSpawn() {
+            noteSpawnTimestamps.push(performance.now());
+        }
+
+        function spawnNoteIfAllowed(force = false) {
+            if (force || canSpawnNote()) {
+                createBeatNote();
+                registerNoteSpawn();
+                return true;
+            }
+            return false;
+        }
+
+        function detectBeat() {
+            if (!analyserNode || !audioContext) return false;
+
+            const freqData = new Uint8Array(analyserNode.frequencyBinCount);
+            analyserNode.getByteFrequencyData(freqData);
 
             let sum = 0;
-            const lowBins = 12;
+            const lowBins = 18;
             for (let i = 0; i < lowBins; i++) {
-                sum += data[i];
+                sum += freqData[i];
             }
-            const energy = sum / lowBins;
-            beatDetector.energyAvg = beatDetector.energyAvg * 0.9 + energy * 0.1;
+            const freqEnergy = sum / lowBins;
 
-            const threshold = beatDetector.energyAvg * beatDetector.sensitivity + 5;
+            const timeData = new Uint8Array(analyserNode.fftSize);
+            analyserNode.getByteTimeDomainData(timeData);
+            let rms = 0;
+            for (let i = 0; i < timeData.length; i++) {
+                const sample = (timeData[i] - 128) / 128;
+                rms += sample * sample;
+            }
+            rms = Math.sqrt(rms / timeData.length);
+            const rmsEnergy = rms * 120;
+
+            const energy = freqEnergy * 0.65 + rmsEnergy * 0.35;
+
+            beatDetector.energyHistory.push(energy);
+            if (beatDetector.energyHistory.length > beatDetector.historySize) {
+                beatDetector.energyHistory.shift();
+            }
+
+            const avg = beatDetector.energyHistory.reduce((acc, val) => acc + val, 0) / beatDetector.energyHistory.length;
+            const variance = beatDetector.energyHistory.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / beatDetector.energyHistory.length;
+            const dynamicThreshold = avg + Math.sqrt(variance) * beatDetector.sensitivity;
+            const threshold = Math.max(dynamicThreshold, avg * 1.05 + 6);
+            beatDetector.energyAvg = avg;
+
             const now = audioContext.currentTime;
 
             if (energy > threshold && (now - beatDetector.lastBeatTime) > beatDetector.minInterval) {
                 beatDetector.prevBeatTime = beatDetector.lastBeatTime || now;
                 beatDetector.lastBeatTime = now;
-                createBeatNote();
+                spawnNoteIfAllowed();
 
                 const interval = (beatDetector.lastBeatTime - beatDetector.prevBeatTime) * 1000;
                 if (interval > 100) {
                     gameState.beatInterval = interval;
                     gameState.bpm = Math.round(60000 / interval);
                 }
+                return true;
             }
+            return false;
         }
 
         // Update beat notes positions
@@ -2392,12 +2533,27 @@
         let lastNoteSpawn = 0;
         function spawnBeatNotes(time) {
             const spawnInterval = 60000 / gameState.bpm / 2;
+            const minInterval = minNotesPerSecond > 0 ? 1000 / minNotesPerSecond : 0;
 
-            if (time - lastNoteSpawn > spawnInterval) {
+            if (time - lastNoteSpawn > spawnInterval && time - lastNoteSpawn > minInterval) {
                 if (Math.random() > 0.25) {
-                    createBeatNote();
+                    spawnNoteIfAllowed();
                 }
                 lastNoteSpawn = time;
+            }
+        }
+
+        let lastNoteSpawnAudio = 0;
+        function spawnBeatNotesFromTrack(currentMs, force = false) {
+            const baseInterval = Math.max(180, Math.min(500, gameState.beatInterval / 2));
+            const minInterval = minNotesPerSecond > 0 ? 1000 / minNotesPerSecond : 0;
+            const shouldSpawn = (currentMs - lastNoteSpawnAudio) > Math.max(baseInterval, minInterval);
+
+            if (force || shouldSpawn) {
+                if (force || Math.random() > 0.15) {
+                    spawnNoteIfAllowed();
+                }
+                lastNoteSpawnAudio = currentMs;
             }
         }
 
@@ -2427,7 +2583,10 @@
 
             // Spawn notes
             if (useUserTrack && userTrack && !userTrack.paused) {
-                detectBeat();
+                const beatHit = detectBeat();
+                if (audioContext) {
+                    spawnBeatNotesFromTrack(audioContext.currentTime * 1000, beatHit);
+                }
             } else {
                 spawnBeatNotes(time);
             }
@@ -2471,7 +2630,10 @@
             gameState.isPaused = false;
             gameTime = 0;
             lastNoteSpawn = 0;
+            lastNoteSpawnAudio = 0;
+            noteSpawnTimestamps.length = 0;
             beatDetector.energyAvg = 0;
+            beatDetector.energyHistory = [];
             beatDetector.lastBeatTime = 0;
             beatDetector.prevBeatTime = 0;
 
@@ -2545,7 +2707,9 @@
             initScene();
             initPhysics();
             setupKeyBindingListeners();
+            setupDifficultyListeners();
             updateKeyDisplays();
+            updateDifficultySelection(currentDifficulty);
 
             // Event listeners
             elements.startBtn.addEventListener('click', startGame);
