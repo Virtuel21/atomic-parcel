@@ -1,0 +1,1407 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atomic Parcel - Rhythm Delivery Chaos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a2e;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #score-display {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 10px #ff6b35, 0 0 20px #ff6b35;
+        }
+
+        #combo-display {
+            font-size: 1.5rem;
+            color: #ffd700;
+            text-shadow: 0 0 10px #ffd700;
+            margin-top: 5px;
+        }
+
+        #multiplier {
+            font-size: 1.2rem;
+            color: #00ff88;
+        }
+
+        /* Rhythm indicator */
+        #rhythm-bar {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 80px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            border: 2px solid #444;
+            overflow: hidden;
+        }
+
+        #beat-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, #ff0066, #ff6b35);
+            box-shadow: 0 0 20px #ff0066;
+            z-index: 10;
+        }
+
+        .beat-note {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 60px;
+            height: 60px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: white;
+            transition: transform 0.1s;
+        }
+
+        .beat-note.cube {
+            background: linear-gradient(135deg, #4a90d9, #2c5aa0);
+            border: 3px solid #6bb3ff;
+        }
+
+        .beat-note.sphere {
+            background: linear-gradient(135deg, #d94a4a, #a02c2c);
+            border: 3px solid #ff6b6b;
+            border-radius: 50%;
+        }
+
+        .beat-note.pizza {
+            background: linear-gradient(135deg, #d9a54a, #a07c2c);
+            border: 3px solid #ffcc6b;
+        }
+
+        .beat-note.hit {
+            animation: noteHit 0.3s ease-out forwards;
+        }
+
+        @keyframes noteHit {
+            0% { transform: translateY(-50%) scale(1); opacity: 1; }
+            100% { transform: translateY(-50%) scale(1.5); opacity: 0; }
+        }
+
+        /* Controls display */
+        #controls-display {
+            position: absolute;
+            bottom: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+            pointer-events: none;
+        }
+
+        .control-key {
+            width: 70px;
+            height: 70px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            opacity: 0.6;
+            transition: all 0.1s;
+        }
+
+        .control-key.active {
+            opacity: 1;
+            transform: scale(1.1);
+            box-shadow: 0 0 30px currentColor;
+        }
+
+        .control-key.cube-key {
+            background: linear-gradient(135deg, #4a90d9, #2c5aa0);
+            border: 3px solid #6bb3ff;
+        }
+
+        .control-key.sphere-key {
+            background: linear-gradient(135deg, #d94a4a, #a02c2c);
+            border: 3px solid #ff6b6b;
+        }
+
+        .control-key.pizza-key {
+            background: linear-gradient(135deg, #d9a54a, #a07c2c);
+            border: 3px solid #ffcc6b;
+        }
+
+        .key-letter {
+            font-size: 1.8rem;
+        }
+
+        .key-icon {
+            font-size: 0.8rem;
+            margin-top: 2px;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        #crosshair::before {
+            width: 2px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        #crosshair::after {
+            width: 100%;
+            height: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* Feedback text */
+        .feedback-text {
+            position: absolute;
+            font-size: 2rem;
+            font-weight: bold;
+            pointer-events: none;
+            animation: feedbackFloat 1s ease-out forwards;
+            z-index: 200;
+        }
+
+        .feedback-text.perfect {
+            color: #00ff88;
+            text-shadow: 0 0 20px #00ff88;
+        }
+
+        .feedback-text.good {
+            color: #ffd700;
+            text-shadow: 0 0 20px #ffd700;
+        }
+
+        .feedback-text.ok {
+            color: #ff9500;
+            text-shadow: 0 0 20px #ff9500;
+        }
+
+        .feedback-text.miss {
+            color: #ff3333;
+            text-shadow: 0 0 20px #ff3333;
+        }
+
+        .feedback-text.break {
+            color: #ff00ff;
+            text-shadow: 0 0 30px #ff00ff;
+            font-size: 2.5rem;
+        }
+
+        @keyframes feedbackFloat {
+            0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50px) scale(1.2); opacity: 0; }
+        }
+
+        /* Start screen */
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 26, 46, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #start-screen h1 {
+            font-size: 4rem;
+            color: #ff6b35;
+            text-shadow: 0 0 30px #ff6b35;
+            margin-bottom: 10px;
+        }
+
+        #start-screen h2 {
+            font-size: 1.5rem;
+            color: #888;
+            margin-bottom: 40px;
+            font-style: italic;
+        }
+
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 40px;
+            max-width: 500px;
+        }
+
+        .instructions h3 {
+            color: #ffd700;
+            margin-bottom: 15px;
+        }
+
+        .instructions p {
+            color: #ccc;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .key-hint {
+            display: inline-block;
+            padding: 5px 12px;
+            background: #444;
+            border-radius: 5px;
+            color: #fff;
+            font-weight: bold;
+            margin: 0 3px;
+        }
+
+        #start-btn {
+            padding: 20px 60px;
+            font-size: 1.5rem;
+            background: linear-gradient(135deg, #ff6b35, #ff3366);
+            border: none;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            pointer-events: auto;
+        }
+
+        #start-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 40px #ff6b35;
+        }
+
+        /* Game over screen */
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 26, 46, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #game-over-screen h1 {
+            font-size: 3rem;
+            color: #ff6b35;
+            margin-bottom: 20px;
+        }
+
+        #final-score {
+            font-size: 4rem;
+            color: #ffd700;
+            text-shadow: 0 0 30px #ffd700;
+            margin-bottom: 10px;
+        }
+
+        #stats {
+            color: #888;
+            font-size: 1.2rem;
+            margin-bottom: 30px;
+        }
+
+        /* Power meter */
+        #power-meter {
+            position: absolute;
+            right: 30px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 30px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            border: 2px solid #444;
+            overflow: hidden;
+        }
+
+        #power-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(180deg, #ff0066, #ff6b35, #ffd700);
+            transition: height 0.05s;
+        }
+
+        #power-label {
+            position: absolute;
+            right: 70px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #fff;
+            font-size: 0.9rem;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+
+        /* Broken packages counter */
+        #broken-counter {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 0, 102, 0.3);
+            padding: 15px 25px;
+            border-radius: 10px;
+            border: 2px solid #ff0066;
+        }
+
+        #broken-counter span {
+            color: #ff0066;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        #broken-label {
+            color: #ff9999;
+            font-size: 0.9rem;
+            display: block;
+            margin-top: 5px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h1>ATOMIC PARCEL</h1>
+            <h2>"Livraison express... ou presque"</h2>
+            <div class="instructions">
+                <h3>Comment jouer</h3>
+                <p><span class="key-hint">A</span> Lancer un CUBE</p>
+                <p><span class="key-hint">P</span> Lancer une SPHERE</p>
+                <p><span class="key-hint">ESPACE</span> Lancer une PIZZA</p>
+                <p><strong>Visez avec la souris</strong> - Plus vous visez haut, plus vous lancez fort!</p>
+                <p><strong>Timing:</strong> Appuyez quand la note atteint la ligne centrale</p>
+                <p><strong>Objectif:</strong> Cassez un maximum de colis dans le camion!</p>
+            </div>
+            <button id="start-btn">COMMENCER LE CHAOS</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen">
+            <h1>FIN DU SERVICE!</h1>
+            <div id="final-score">0</div>
+            <div id="stats">
+                <p>Colis cassés: <span id="stat-broken">0</span></p>
+                <p>Combo max: <span id="stat-combo">0</span></p>
+                <p>Précision: <span id="stat-accuracy">0%</span></p>
+            </div>
+            <button id="start-btn-2" style="padding: 20px 60px; font-size: 1.5rem; background: linear-gradient(135deg, #ff6b35, #ff3366); border: none; border-radius: 50px; color: white; cursor: pointer; font-weight: bold;">REJOUER</button>
+        </div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="score-display">0</div>
+            <div id="combo-display">Combo: <span id="combo-value">0</span>x</div>
+            <div id="multiplier">Multiplicateur: x<span id="mult-value">1</span></div>
+        </div>
+
+        <!-- Broken counter -->
+        <div id="broken-counter">
+            <span id="broken-value">0</span>
+            <span id="broken-label">COLIS DETRUITS</span>
+        </div>
+
+        <!-- Power meter -->
+        <div id="power-meter">
+            <div id="power-fill" style="height: 50%"></div>
+        </div>
+        <div id="power-label">PUISSANCE</div>
+
+        <!-- Crosshair -->
+        <div id="crosshair"></div>
+
+        <!-- Rhythm bar -->
+        <div id="rhythm-bar">
+            <div id="beat-line"></div>
+        </div>
+
+        <!-- Controls display -->
+        <div id="controls-display">
+            <div class="control-key cube-key" id="key-a">
+                <span class="key-letter">A</span>
+                <span class="key-icon">CUBE</span>
+            </div>
+            <div class="control-key sphere-key" id="key-p">
+                <span class="key-letter">P</span>
+                <span class="key-icon">SPHERE</span>
+            </div>
+            <div class="control-key pizza-key" id="key-space">
+                <span class="key-letter">_</span>
+                <span class="key-icon">PIZZA</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Cannon.js for physics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+
+    <script>
+        // ============================================
+        // ATOMIC PARCEL - Rhythm Delivery Chaos
+        // ============================================
+
+        // Game state
+        const gameState = {
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            multiplier: 1,
+            brokenPackages: 0,
+            totalNotes: 0,
+            hitNotes: 0,
+            isPlaying: false,
+            isPaused: false,
+            bpm: 120,
+            beatInterval: 500,
+            lastBeatTime: 0,
+            mouseY: 0.5,
+            power: 0.5
+        };
+
+        // Package types
+        const PACKAGE_TYPES = {
+            CUBE: { key: 'a', name: 'cube', color: 0x4a90d9 },
+            SPHERE: { key: 'p', name: 'sphere', color: 0xd94a4a },
+            PIZZA: { key: ' ', name: 'pizza', color: 0xd9a54a }
+        };
+
+        // DOM elements
+        const elements = {
+            container: document.getElementById('game-container'),
+            startScreen: document.getElementById('start-screen'),
+            gameOverScreen: document.getElementById('game-over-screen'),
+            startBtn: document.getElementById('start-btn'),
+            startBtn2: document.getElementById('start-btn-2'),
+            scoreDisplay: document.getElementById('score-display'),
+            comboValue: document.getElementById('combo-value'),
+            multValue: document.getElementById('mult-value'),
+            brokenValue: document.getElementById('broken-value'),
+            rhythmBar: document.getElementById('rhythm-bar'),
+            powerFill: document.getElementById('power-fill'),
+            keyA: document.getElementById('key-a'),
+            keyP: document.getElementById('key-p'),
+            keySpace: document.getElementById('key-space'),
+            finalScore: document.getElementById('final-score'),
+            statBroken: document.getElementById('stat-broken'),
+            statCombo: document.getElementById('stat-combo'),
+            statAccuracy: document.getElementById('stat-accuracy')
+        };
+
+        // Three.js variables
+        let scene, camera, renderer;
+        let truck, truckBody;
+        let packages = [];
+        let particles = [];
+
+        // Cannon.js physics
+        let world;
+        let packageBodies = [];
+
+        // Audio context
+        let audioContext;
+        let gainNode;
+
+        // Beat notes on screen
+        let beatNotes = [];
+        let noteId = 0;
+
+        // Initialize Three.js scene
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 3, 8);
+            camera.lookAt(0, 1, -5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            elements.container.insertBefore(renderer.domElement, elements.container.firstChild);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+            mainLight.position.set(5, 10, 5);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            mainLight.shadow.camera.near = 0.5;
+            mainLight.shadow.camera.far = 50;
+            scene.add(mainLight);
+
+            const fillLight = new THREE.DirectionalLight(0x6688ff, 0.3);
+            fillLight.position.set(-5, 5, 0);
+            scene.add(fillLight);
+
+            // Colored accent lights
+            const redLight = new THREE.PointLight(0xff0066, 0.5, 20);
+            redLight.position.set(-5, 3, 0);
+            scene.add(redLight);
+
+            const blueLight = new THREE.PointLight(0x0066ff, 0.5, 20);
+            blueLight.position.set(5, 3, 0);
+            scene.add(blueLight);
+
+            // Ground
+            const groundGeometry = new THREE.PlaneGeometry(100, 100);
+            const groundMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222233,
+                roughness: 0.8
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Grid
+            const gridHelper = new THREE.GridHelper(50, 50, 0x444466, 0x333355);
+            scene.add(gridHelper);
+
+            // Create truck
+            createTruck();
+
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Create the truck/trailer
+        function createTruck() {
+            truck = new THREE.Group();
+
+            // Trailer body (container)
+            const trailerGeometry = new THREE.BoxGeometry(4, 3, 8);
+            const trailerMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666688,
+                roughness: 0.6,
+                metalness: 0.3
+            });
+            const trailer = new THREE.Mesh(trailerGeometry, trailerMaterial);
+            trailer.position.set(0, 1.5, -8);
+            trailer.castShadow = true;
+            trailer.receiveShadow = true;
+            truck.add(trailer);
+
+            // Open back of trailer (frame)
+            const frameGeometry = new THREE.BoxGeometry(4.2, 3.2, 0.1);
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff6b35,
+                emissive: 0xff6b35,
+                emissiveIntensity: 0.2
+            });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.set(0, 1.5, -3.95);
+            truck.add(frame);
+
+            // Inner frame (the actual opening)
+            const innerGeometry = new THREE.BoxGeometry(3.6, 2.8, 0.2);
+            const innerMaterial = new THREE.MeshStandardMaterial({
+                color: 0x111122,
+                roughness: 1
+            });
+            const inner = new THREE.Mesh(innerGeometry, innerMaterial);
+            inner.position.set(0, 1.5, -4);
+            truck.add(inner);
+
+            // Floor inside trailer
+            const floorGeometry = new THREE.BoxGeometry(3.8, 0.1, 7.8);
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x554433,
+                roughness: 0.9
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.position.set(0, 0.1, -8);
+            floor.receiveShadow = true;
+            truck.add(floor);
+
+            // Wheels
+            const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16);
+            const wheelMaterial = new THREE.MeshStandardMaterial({
+                color: 0x222222,
+                roughness: 0.7
+            });
+
+            const wheelPositions = [
+                [-1.8, 0.5, -6], [1.8, 0.5, -6],
+                [-1.8, 0.5, -10], [1.8, 0.5, -10]
+            ];
+
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(...pos);
+                wheel.castShadow = true;
+                truck.add(wheel);
+            });
+
+            // Company logo text area
+            const logoGeometry = new THREE.PlaneGeometry(3, 1);
+            const logoMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffcc00,
+                transparent: true,
+                opacity: 0.9
+            });
+            const logo = new THREE.Mesh(logoGeometry, logoMaterial);
+            logo.position.set(0, 2.5, -3.9);
+            truck.add(logo);
+
+            scene.add(truck);
+        }
+
+        // Initialize Cannon.js physics
+        function initPhysics() {
+            world = new CANNON.World();
+            world.gravity.set(0, -15, 0);
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 10;
+
+            // Ground plane
+            const groundShape = new CANNON.Plane();
+            const groundBody = new CANNON.Body({ mass: 0 });
+            groundBody.addShape(groundShape);
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(groundBody);
+
+            // Truck floor
+            const truckFloorShape = new CANNON.Box(new CANNON.Vec3(1.9, 0.05, 3.9));
+            const truckFloorBody = new CANNON.Body({ mass: 0 });
+            truckFloorBody.addShape(truckFloorShape);
+            truckFloorBody.position.set(0, 0.1, -8);
+            world.addBody(truckFloorBody);
+
+            // Truck walls
+            const wallThickness = 0.1;
+
+            // Back wall
+            const backWallShape = new CANNON.Box(new CANNON.Vec3(2, 1.5, wallThickness));
+            const backWallBody = new CANNON.Body({ mass: 0 });
+            backWallBody.addShape(backWallShape);
+            backWallBody.position.set(0, 1.5, -12);
+            world.addBody(backWallBody);
+
+            // Side walls
+            const sideWallShape = new CANNON.Box(new CANNON.Vec3(wallThickness, 1.5, 4));
+
+            const leftWallBody = new CANNON.Body({ mass: 0 });
+            leftWallBody.addShape(sideWallShape);
+            leftWallBody.position.set(-2, 1.5, -8);
+            world.addBody(leftWallBody);
+
+            const rightWallBody = new CANNON.Body({ mass: 0 });
+            rightWallBody.addShape(sideWallShape);
+            rightWallBody.position.set(2, 1.5, -8);
+            world.addBody(rightWallBody);
+
+            // Ceiling
+            const ceilingShape = new CANNON.Box(new CANNON.Vec3(2, wallThickness, 4));
+            const ceilingBody = new CANNON.Body({ mass: 0 });
+            ceilingBody.addShape(ceilingShape);
+            ceilingBody.position.set(0, 3, -8);
+            world.addBody(ceilingBody);
+        }
+
+        // Initialize audio
+        function initAudio() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioContext.createGain();
+            gainNode.connect(audioContext.destination);
+            gainNode.gain.value = 0.3;
+        }
+
+        // Play a beat sound
+        function playBeatSound(frequency = 200, type = 'sine', duration = 0.1) {
+            if (!audioContext) return;
+
+            const osc = audioContext.createOscillator();
+            const oscGain = audioContext.createGain();
+
+            osc.type = type;
+            osc.frequency.value = frequency;
+
+            oscGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+
+            osc.connect(oscGain);
+            oscGain.connect(gainNode);
+
+            osc.start();
+            osc.stop(audioContext.currentTime + duration);
+        }
+
+        // Play background beat
+        function playBackgroundBeat() {
+            if (!gameState.isPlaying) return;
+
+            // Kick drum
+            playBeatSound(60, 'sine', 0.15);
+
+            // Schedule hi-hat
+            setTimeout(() => {
+                if (gameState.isPlaying) {
+                    playBeatSound(800, 'square', 0.05);
+                }
+            }, gameState.beatInterval / 2);
+        }
+
+        // Create a package mesh
+        function createPackageMesh(type) {
+            let geometry, material;
+            const group = new THREE.Group();
+
+            switch(type) {
+                case 'cube':
+                    geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                    material = new THREE.MeshStandardMaterial({
+                        color: PACKAGE_TYPES.CUBE.color,
+                        roughness: 0.4,
+                        metalness: 0.1
+                    });
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.castShadow = true;
+                    group.add(cube);
+
+                    // Add tape lines
+                    const tapeMaterial = new THREE.MeshBasicMaterial({ color: 0x8b7355 });
+                    const tape1 = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 0.1), tapeMaterial);
+                    tape1.position.y = 0.25;
+                    group.add(tape1);
+                    break;
+
+                case 'sphere':
+                    geometry = new THREE.SphereGeometry(0.3, 16, 16);
+                    material = new THREE.MeshStandardMaterial({
+                        color: PACKAGE_TYPES.SPHERE.color,
+                        roughness: 0.3,
+                        metalness: 0.2
+                    });
+                    const sphere = new THREE.Mesh(geometry, material);
+                    sphere.castShadow = true;
+                    group.add(sphere);
+
+                    // Add bubble wrap look
+                    const wrapGeometry = new THREE.SphereGeometry(0.32, 8, 8);
+                    const wrapMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        wireframe: true,
+                        transparent: true,
+                        opacity: 0.3
+                    });
+                    group.add(new THREE.Mesh(wrapGeometry, wrapMaterial));
+                    break;
+
+                case 'pizza':
+                    // Flat box for pizza
+                    geometry = new THREE.BoxGeometry(0.7, 0.15, 0.7);
+                    material = new THREE.MeshStandardMaterial({
+                        color: PACKAGE_TYPES.PIZZA.color,
+                        roughness: 0.8
+                    });
+                    const pizzaBox = new THREE.Mesh(geometry, material);
+                    pizzaBox.castShadow = true;
+                    group.add(pizzaBox);
+
+                    // Add "PIZZA" indication on top
+                    const topGeometry = new THREE.CircleGeometry(0.25, 8);
+                    const topMaterial = new THREE.MeshBasicMaterial({ color: 0xcc0000 });
+                    const top = new THREE.Mesh(topGeometry, topMaterial);
+                    top.rotation.x = -Math.PI / 2;
+                    top.position.y = 0.08;
+                    group.add(top);
+                    break;
+            }
+
+            return group;
+        }
+
+        // Create physics body for package
+        function createPackageBody(type, position, velocity) {
+            let shape, mass = 2;
+
+            switch(type) {
+                case 'cube':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.25, 0.25, 0.25));
+                    break;
+                case 'sphere':
+                    shape = new CANNON.Sphere(0.3);
+                    mass = 1.5;
+                    break;
+                case 'pizza':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.35, 0.075, 0.35));
+                    mass = 1;
+                    break;
+            }
+
+            const body = new CANNON.Body({ mass: mass });
+            body.addShape(shape);
+            body.position.copy(position);
+            body.velocity.copy(velocity);
+
+            // Add some spin
+            body.angularVelocity.set(
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10,
+                (Math.random() - 0.5) * 10
+            );
+
+            // Collision detection for breaking
+            body.addEventListener('collide', (e) => {
+                const relVel = e.contact.getImpactVelocityAlongNormal();
+                if (Math.abs(relVel) > 8) {
+                    // Package breaks!
+                    const meshData = packages.find(p => p.body === body);
+                    if (meshData && !meshData.broken) {
+                        breakPackage(meshData);
+                    }
+                }
+            });
+
+            world.addBody(body);
+            return body;
+        }
+
+        // Launch a package
+        function launchPackage(type) {
+            const mesh = createPackageMesh(type);
+
+            // Start position (in front of camera)
+            const startPos = new THREE.Vector3(0, 1.5, 5);
+            mesh.position.copy(startPos);
+            scene.add(mesh);
+
+            // Calculate velocity based on power
+            const power = gameState.power;
+            const baseSpeed = 12 + power * 15;
+
+            // Direction toward truck opening with some arc
+            const velocity = new CANNON.Vec3(
+                (Math.random() - 0.5) * 2,
+                3 + power * 4,
+                -baseSpeed
+            );
+
+            const body = createPackageBody(type,
+                new CANNON.Vec3(startPos.x, startPos.y, startPos.z),
+                velocity
+            );
+
+            packages.push({
+                mesh: mesh,
+                body: body,
+                type: type,
+                broken: false,
+                lifetime: 0
+            });
+
+            // Play throw sound
+            playBeatSound(150 + power * 100, 'sawtooth', 0.1);
+        }
+
+        // Break a package into pieces
+        function breakPackage(packageData) {
+            if (packageData.broken) return;
+            packageData.broken = true;
+
+            const pos = packageData.mesh.position.clone();
+            const color = packageData.mesh.children[0].material.color;
+
+            // Create particle explosion
+            for (let i = 0; i < 15; i++) {
+                const particleGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                const particleMaterial = new THREE.MeshBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 1
+                });
+                const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+                particle.position.copy(pos);
+                particle.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 5,
+                    Math.random() * 5,
+                    (Math.random() - 0.5) * 5
+                );
+                particle.lifetime = 0;
+                scene.add(particle);
+                particles.push(particle);
+            }
+
+            // Hide original mesh
+            packageData.mesh.visible = false;
+
+            // Update score
+            gameState.brokenPackages++;
+            gameState.score += 100 * gameState.multiplier;
+            elements.brokenValue.textContent = gameState.brokenPackages;
+            updateScoreDisplay();
+
+            // Show feedback
+            showFeedback('CASSE!', 'break', window.innerWidth / 2, window.innerHeight / 2 - 100);
+
+            // Play break sound
+            playBeatSound(100, 'sawtooth', 0.2);
+            playBeatSound(80, 'square', 0.3);
+        }
+
+        // Show feedback text
+        function showFeedback(text, type, x, y) {
+            const feedback = document.createElement('div');
+            feedback.className = `feedback-text ${type}`;
+            feedback.textContent = text;
+            feedback.style.left = x + 'px';
+            feedback.style.top = y + 'px';
+            elements.container.appendChild(feedback);
+
+            setTimeout(() => feedback.remove(), 1000);
+        }
+
+        // Create a beat note on the rhythm bar
+        function createBeatNote() {
+            const types = ['cube', 'sphere', 'pizza'];
+            const type = types[Math.floor(Math.random() * types.length)];
+
+            const note = document.createElement('div');
+            note.className = `beat-note ${type}`;
+            note.dataset.id = noteId++;
+            note.dataset.type = type;
+            note.style.right = '-70px';
+
+            let keyText = '';
+            switch(type) {
+                case 'cube': keyText = 'A'; break;
+                case 'sphere': keyText = 'P'; break;
+                case 'pizza': '_'; break;
+            }
+            note.textContent = keyText;
+
+            elements.rhythmBar.appendChild(note);
+            beatNotes.push({
+                element: note,
+                type: type,
+                position: -70,
+                hit: false
+            });
+
+            gameState.totalNotes++;
+        }
+
+        // Update beat notes positions
+        function updateBeatNotes(deltaTime) {
+            const speed = 300; // pixels per second
+            const hitZone = 300; // center of bar
+            const hitWindow = 50;
+            const goodWindow = 80;
+            const okWindow = 120;
+
+            beatNotes.forEach((note, index) => {
+                if (note.hit) return;
+
+                note.position += speed * deltaTime;
+                note.element.style.right = (-70 + note.position) + 'px';
+
+                // Check if note passed without being hit
+                if (note.position > hitZone + okWindow + 30) {
+                    note.element.remove();
+                    beatNotes.splice(index, 1);
+
+                    // Miss!
+                    gameState.combo = 0;
+                    gameState.multiplier = 1;
+                    updateComboDisplay();
+                    showFeedback('RATE!', 'miss', window.innerWidth / 2, window.innerHeight - 250);
+                }
+            });
+        }
+
+        // Check if a key press hits a note
+        function checkNoteHit(type) {
+            const hitZone = 300;
+            const hitWindow = 40;
+            const goodWindow = 70;
+            const okWindow = 100;
+
+            for (let i = 0; i < beatNotes.length; i++) {
+                const note = beatNotes[i];
+                if (note.hit || note.type !== type) continue;
+
+                const distance = Math.abs(note.position - hitZone);
+
+                if (distance < okWindow) {
+                    note.hit = true;
+                    note.element.classList.add('hit');
+                    gameState.hitNotes++;
+
+                    let points = 0;
+                    let feedback = '';
+                    let feedbackType = '';
+
+                    if (distance < hitWindow) {
+                        points = 50;
+                        feedback = 'PARFAIT!';
+                        feedbackType = 'perfect';
+                        playBeatSound(600, 'sine', 0.1);
+                    } else if (distance < goodWindow) {
+                        points = 30;
+                        feedback = 'BIEN!';
+                        feedbackType = 'good';
+                        playBeatSound(400, 'sine', 0.1);
+                    } else {
+                        points = 10;
+                        feedback = 'OK';
+                        feedbackType = 'ok';
+                        playBeatSound(300, 'sine', 0.1);
+                    }
+
+                    // Update combo
+                    gameState.combo++;
+                    if (gameState.combo > gameState.maxCombo) {
+                        gameState.maxCombo = gameState.combo;
+                    }
+                    gameState.multiplier = Math.min(4, 1 + Math.floor(gameState.combo / 5));
+
+                    // Add score
+                    gameState.score += points * gameState.multiplier;
+                    updateScoreDisplay();
+                    updateComboDisplay();
+
+                    // Show feedback
+                    showFeedback(feedback, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
+
+                    // Launch the package
+                    launchPackage(type);
+
+                    setTimeout(() => {
+                        note.element.remove();
+                        const idx = beatNotes.indexOf(note);
+                        if (idx > -1) beatNotes.splice(idx, 1);
+                    }, 300);
+
+                    return true;
+                }
+            }
+
+            // Wrong timing or wrong type
+            return false;
+        }
+
+        // Update score display
+        function updateScoreDisplay() {
+            elements.scoreDisplay.textContent = gameState.score.toLocaleString();
+        }
+
+        // Update combo display
+        function updateComboDisplay() {
+            elements.comboValue.textContent = gameState.combo;
+            elements.multValue.textContent = gameState.multiplier;
+        }
+
+        // Handle keyboard input
+        function handleKeyDown(e) {
+            if (!gameState.isPlaying) return;
+
+            const key = e.key.toLowerCase();
+            let type = null;
+
+            switch(key) {
+                case 'a':
+                    type = 'cube';
+                    elements.keyA.classList.add('active');
+                    break;
+                case 'p':
+                    type = 'sphere';
+                    elements.keyP.classList.add('active');
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    type = 'pizza';
+                    elements.keySpace.classList.add('active');
+                    break;
+            }
+
+            if (type) {
+                if (!checkNoteHit(type)) {
+                    // Wrong timing - penalty
+                    gameState.combo = 0;
+                    gameState.multiplier = 1;
+                    updateComboDisplay();
+                    showFeedback('RATE!', 'miss', window.innerWidth / 2, window.innerHeight - 250);
+                    playBeatSound(100, 'square', 0.1);
+                }
+            }
+        }
+
+        function handleKeyUp(e) {
+            const key = e.key.toLowerCase();
+            switch(key) {
+                case 'a':
+                    elements.keyA.classList.remove('active');
+                    break;
+                case 'p':
+                    elements.keyP.classList.remove('active');
+                    break;
+                case ' ':
+                    elements.keySpace.classList.remove('active');
+                    break;
+            }
+        }
+
+        // Handle mouse movement for power
+        function handleMouseMove(e) {
+            const normalizedY = 1 - (e.clientY / window.innerHeight);
+            gameState.power = Math.max(0.2, Math.min(1, normalizedY));
+            elements.powerFill.style.height = (gameState.power * 100) + '%';
+        }
+
+        // Window resize handler
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Update physics
+        function updatePhysics(deltaTime) {
+            world.step(1 / 60, deltaTime, 3);
+
+            packages.forEach((pkg, index) => {
+                pkg.mesh.position.copy(pkg.body.position);
+                pkg.mesh.quaternion.copy(pkg.body.quaternion);
+                pkg.lifetime += deltaTime;
+
+                // Remove old packages
+                if (pkg.lifetime > 10) {
+                    scene.remove(pkg.mesh);
+                    world.removeBody(pkg.body);
+                    packages.splice(index, 1);
+                }
+            });
+
+            // Update particles
+            particles.forEach((particle, index) => {
+                particle.velocity.y -= 15 * deltaTime;
+                particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+                particle.lifetime += deltaTime;
+                particle.material.opacity = 1 - particle.lifetime;
+
+                if (particle.lifetime > 1) {
+                    scene.remove(particle);
+                    particles.splice(index, 1);
+                }
+            });
+        }
+
+        // Spawn beat notes
+        let lastNoteSpawn = 0;
+        function spawnBeatNotes(time) {
+            const spawnInterval = 60000 / gameState.bpm / 2; // Spawn every half beat
+
+            if (time - lastNoteSpawn > spawnInterval) {
+                // Randomly decide to spawn a note
+                if (Math.random() > 0.3) {
+                    createBeatNote();
+                }
+                lastNoteSpawn = time;
+            }
+        }
+
+        // Main game loop
+        let lastTime = 0;
+        let gameTime = 0;
+        const gameDuration = 90000; // 90 seconds
+
+        function gameLoop(time) {
+            if (!gameState.isPlaying) return;
+
+            requestAnimationFrame(gameLoop);
+
+            const deltaTime = Math.min((time - lastTime) / 1000, 0.1);
+            lastTime = time;
+            gameTime += deltaTime * 1000;
+
+            // Check game over
+            if (gameTime >= gameDuration) {
+                endGame();
+                return;
+            }
+
+            // Spawn notes
+            spawnBeatNotes(time);
+
+            // Update beat notes
+            updateBeatNotes(deltaTime);
+
+            // Update physics
+            updatePhysics(deltaTime);
+
+            // Play beat sounds
+            if (time - gameState.lastBeatTime > gameState.beatInterval) {
+                playBackgroundBeat();
+                gameState.lastBeatTime = time;
+            }
+
+            // Render
+            renderer.render(scene, camera);
+        }
+
+        // Start game
+        function startGame() {
+            // Reset state
+            gameState.score = 0;
+            gameState.combo = 0;
+            gameState.maxCombo = 0;
+            gameState.multiplier = 1;
+            gameState.brokenPackages = 0;
+            gameState.totalNotes = 0;
+            gameState.hitNotes = 0;
+            gameState.isPlaying = true;
+            gameTime = 0;
+            lastNoteSpawn = 0;
+
+            // Clear existing
+            beatNotes.forEach(n => n.element.remove());
+            beatNotes = [];
+            packages.forEach(p => {
+                scene.remove(p.mesh);
+                world.removeBody(p.body);
+            });
+            packages = [];
+            particles.forEach(p => scene.remove(p));
+            particles = [];
+
+            // Update UI
+            updateScoreDisplay();
+            updateComboDisplay();
+            elements.brokenValue.textContent = '0';
+
+            // Hide screens
+            elements.startScreen.classList.add('hidden');
+            elements.gameOverScreen.style.display = 'none';
+
+            // Initialize audio on user interaction
+            if (!audioContext) {
+                initAudio();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            // Lock pointer for better aiming feel
+            // elements.container.requestPointerLock();
+
+            // Start game loop
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // End game
+        function endGame() {
+            gameState.isPlaying = false;
+
+            // Show game over screen
+            elements.gameOverScreen.style.display = 'flex';
+            elements.finalScore.textContent = gameState.score.toLocaleString();
+            elements.statBroken.textContent = gameState.brokenPackages;
+            elements.statCombo.textContent = gameState.maxCombo;
+
+            const accuracy = gameState.totalNotes > 0
+                ? Math.round((gameState.hitNotes / gameState.totalNotes) * 100)
+                : 0;
+            elements.statAccuracy.textContent = accuracy + '%';
+
+            // Exit pointer lock
+            document.exitPointerLock();
+        }
+
+        // Initialize everything
+        function init() {
+            initScene();
+            initPhysics();
+
+            // Event listeners
+            elements.startBtn.addEventListener('click', startGame);
+            elements.startBtn2.addEventListener('click', startGame);
+            document.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keyup', handleKeyUp);
+            document.addEventListener('mousemove', handleMouseMove);
+
+            // Initial render
+            renderer.render(scene, camera);
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
