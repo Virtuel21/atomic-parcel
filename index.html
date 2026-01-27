@@ -587,54 +587,6 @@
             font-size: 0.85rem;
         }
 
-        .model-tools {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        .model-tools input[type="file"],
-        .model-tools input[type="url"] {
-            color: #fff;
-            background: rgba(0, 0, 0, 0.35);
-            border: 2px dashed #7bdff6;
-            border-radius: 10px;
-            padding: 12px;
-        }
-
-        .model-tools input[type="url"] {
-            border-style: solid;
-        }
-
-        .model-actions {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .model-actions button {
-            padding: 10px 18px;
-            border-radius: 8px;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            background: #2c5aa0;
-            color: #fff;
-        }
-
-        .model-actions button.secondary {
-            background: #444;
-        }
-
-        .model-status {
-            font-size: 0.95rem;
-            color: #7bdff6;
-        }
-
-        .model-status.error {
-            color: #ff6b6b;
-        }
 
         .analysis-tool {
             background: rgba(255, 255, 255, 0.08);
@@ -1077,21 +1029,6 @@
                 </div>
             </div>
 
-            <div class="instructions">
-                <h3>Modèle 3D du camion</h3>
-                <p>Le modèle par défaut est procédural. Importez un modèle <strong>.glb</strong> (recommandé) ou fournissez une URL publique.</p>
-                <div class="model-tools">
-                    <input type="file" id="model-upload" accept=".glb,.gltf">
-                    <input type="url" id="model-url" placeholder="https://exemple.com/mon-camion.glb">
-                    <div class="model-actions">
-                        <button id="load-model-btn">Charger l'URL</button>
-                        <button id="reset-model-btn" class="secondary">Revenir au modèle procédural</button>
-                    </div>
-                    <div class="model-status" id="model-status">Camion procédural actif.</div>
-                    <div class="music-hint">Astuce : utilisez un fichier .glb pour éviter les ressources externes et les problèmes de CORS.</div>
-                </div>
-            </div>
-
             <div class="analysis-tool">
                 <h3>Outil de map rythmique</h3>
                 <p class="music-hint">Importez une musique pour détecter les temps forts, estimer le BPM et générer une map jouable.</p>
@@ -1358,11 +1295,6 @@
             trackSelect: document.getElementById('track-select'),
             musicUpload: document.getElementById('music-upload'),
             trackStatus: document.getElementById('track-status'),
-            modelUpload: document.getElementById('model-upload'),
-            modelUrl: document.getElementById('model-url'),
-            loadModelBtn: document.getElementById('load-model-btn'),
-            resetModelBtn: document.getElementById('reset-model-btn'),
-            modelStatus: document.getElementById('model-status'),
             difficultyButtons: document.querySelectorAll('.difficulty-btn'),
             analysisUpload: document.getElementById('analysis-upload'),
             analyzeBtn: document.getElementById('analyze-btn'),
@@ -1841,12 +1773,6 @@
             targetGroup.add(interiorLight2);
         }
 
-        function setModelStatus(message, isError = false) {
-            if (!elements.modelStatus) return;
-            elements.modelStatus.textContent = message;
-            elements.modelStatus.classList.toggle('error', isError);
-        }
-
         function clearTruckContents() {
             while (truck.children.length > 0) {
                 truck.remove(truck.children[0]);
@@ -1896,7 +1822,6 @@
         function useProceduralTrailer() {
             clearTruckContents();
             buildProceduralTrailer(truck);
-            setModelStatus('Camion procédural actif.');
         }
 
         function loadTrailerFromUrl(url) {
@@ -1907,74 +1832,26 @@
             }
 
             if (!url) {
-                setModelStatus('Veuillez saisir une URL valide.', true);
                 return;
             }
 
-            setModelStatus('Chargement du modèle depuis l’URL...');
             const loader = new THREE.GLTFLoader();
             loader.load(
                 url,
                 (gltf) => {
                     try {
                         applyTrailerModel(gltf.scene);
-                        setModelStatus('Modèle chargé depuis l’URL.');
                     } catch (error) {
                         console.warn('Failed to initialize trailer model, using procedural trailer.', error);
                         useProceduralTrailer();
-                        setModelStatus('Impossible de charger ce modèle. Retour au procédural.', true);
                     }
                 },
                 undefined,
                 (error) => {
                     console.warn('Failed to load trailer model, using procedural trailer.', error);
                     useProceduralTrailer();
-                    setModelStatus('Erreur de chargement (URL/CORS). Retour au procédural.', true);
                 }
             );
-        }
-
-        function loadTrailerFromFile(file) {
-            if (!file) return;
-            if (!THREE.GLTFLoader) {
-                console.warn('GLTFLoader missing, using procedural trailer.');
-                useProceduralTrailer();
-                return;
-            }
-
-            setModelStatus(`Chargement du modèle ${file.name}...`);
-            const loader = new THREE.GLTFLoader();
-            const reader = new FileReader();
-            const isBinary = file.name.toLowerCase().endsWith('.glb');
-
-            reader.onload = (event) => {
-                const data = event.target.result;
-                loader.parse(
-                    data,
-                    '',
-                    (gltf) => {
-                        try {
-                            applyTrailerModel(gltf.scene);
-                            setModelStatus(`Modèle chargé : ${file.name}`);
-                        } catch (error) {
-                            console.warn('Failed to initialize trailer model, using procedural trailer.', error);
-                            useProceduralTrailer();
-                            setModelStatus('Modèle invalide. Retour au procédural.', true);
-                        }
-                    },
-                    (error) => {
-                        console.warn('Failed to parse trailer model, using procedural trailer.', error);
-                        useProceduralTrailer();
-                        setModelStatus('Erreur de lecture du modèle. Retour au procédural.', true);
-                    }
-                );
-            };
-
-            if (isBinary) {
-                reader.readAsArrayBuffer(file);
-            } else {
-                reader.readAsText(file);
-            }
         }
 
         // Create the truck/trailer - realistic semi-trailer interior
@@ -4195,20 +4072,6 @@
             elements.analysisUpload.addEventListener('change', handleAnalysisUpload);
             elements.analyzeBtn.addEventListener('click', analyzeCurrentTrack);
             elements.exportBtn.addEventListener('click', exportAnalysisJson);
-            elements.modelUpload.addEventListener('change', (event) => {
-                loadTrailerFromFile(event.target.files[0]);
-            });
-            elements.loadModelBtn.addEventListener('click', () => {
-                loadTrailerFromUrl(elements.modelUrl.value.trim());
-            });
-            elements.modelUrl.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    loadTrailerFromUrl(elements.modelUrl.value.trim());
-                }
-            });
-            elements.resetModelBtn.addEventListener('click', () => {
-                useProceduralTrailer();
-            });
             elements.trackSelect.addEventListener('change', (event) => {
                 applyTrackSelection(event.target.value);
             });
