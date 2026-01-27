@@ -1003,10 +1003,12 @@
         // Beat detection state
         const beatDetector = {
             energyAvg: 0,
+            energyHistory: [],
             lastBeatTime: 0,
             prevBeatTime: 0,
-            minInterval: 0.28,
-            sensitivity: 1.35
+            minInterval: 0.18,
+            sensitivity: 1.15,
+            historySize: 45
         };
 
         // Get display name for key
@@ -1270,16 +1272,30 @@
             const shellGeometry = new THREE.BoxGeometry(trailerWidth + 0.2, trailerHeight + 0.2, trailerLength);
             const shellMaterial = new THREE.MeshStandardMaterial({
                 color: 0xeeeeee,
-                roughness: 0.3,
+                roughness: 0.35,
                 metalness: 0.2,
                 transparent: true,
-                opacity: 0.18,
+                opacity: 0.22,
                 depthWrite: false
             });
             const shell = new THREE.Mesh(shellGeometry, shellMaterial);
             shell.position.set(0, trailerHeight / 2 + 0.8, -trailerLength / 2 + 2);
             shell.castShadow = true;
             truck.add(shell);
+
+            // Exterior skin for the trailer (semi-transparent so we still see packages)
+            const skinGeometry = new THREE.BoxGeometry(trailerWidth + 0.05, trailerHeight + 0.05, trailerLength - 0.2);
+            const skinMaterial = new THREE.MeshStandardMaterial({
+                color: 0xf4f4f4,
+                roughness: 0.4,
+                metalness: 0.2,
+                transparent: true,
+                opacity: 0.35
+            });
+            const trailerSkin = new THREE.Mesh(skinGeometry, skinMaterial);
+            trailerSkin.position.set(0, trailerHeight / 2 + 0.82, -trailerLength / 2 + 1.9);
+            trailerSkin.castShadow = true;
+            truck.add(trailerSkin);
 
             // Interior floor (wooden planks)
             const floorGeometry = new THREE.BoxGeometry(trailerWidth - 0.1, 0.1, trailerLength - 0.2);
@@ -1488,6 +1504,137 @@
             brandRight.rotation.y = -Math.PI / 2;
             truck.add(brandRight);
 
+            // === Tractor cab for a real semi look ===
+            const cabGroup = new THREE.Group();
+            const cabMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff5a36,
+                roughness: 0.4,
+                metalness: 0.4
+            });
+            const cabAccent = new THREE.MeshStandardMaterial({
+                color: 0x2d2d3a,
+                roughness: 0.6,
+                metalness: 0.2
+            });
+            const glassMaterial = new THREE.MeshStandardMaterial({
+                color: 0x66aadd,
+                roughness: 0.05,
+                metalness: 0.1,
+                transparent: true,
+                opacity: 0.55
+            });
+            const chromeMaterial = new THREE.MeshStandardMaterial({
+                color: 0xdddddd,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+
+            // Cab base
+            const cabBase = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.8, 2.6), cabAccent);
+            cabBase.position.set(0, 0.7, 3.8);
+            cabBase.castShadow = true;
+            cabGroup.add(cabBase);
+
+            // Cab main body
+            const cabBody = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 1.8), cabMaterial);
+            cabBody.position.set(0, 1.8, 4.1);
+            cabBody.castShadow = true;
+            cabGroup.add(cabBody);
+
+            // Cab roof
+            const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.3, 1.6), cabMaterial);
+            cabRoof.position.set(0, 2.65, 4.1);
+            cabGroup.add(cabRoof);
+
+            // Windshield
+            const windshield = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1), glassMaterial);
+            windshield.position.set(0, 2.1, 5.05);
+            windshield.rotation.x = -0.2;
+            cabGroup.add(windshield);
+
+            // Grill
+            const grill = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 0.15), chromeMaterial);
+            grill.position.set(0, 1.3, 5.1);
+            cabGroup.add(grill);
+
+            // Bumper
+            const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.35, 0.2), cabAccent);
+            bumper.position.set(0, 0.6, 5.2);
+            cabGroup.add(bumper);
+
+            // Headlights
+            const headlightGeometry = new THREE.BoxGeometry(0.25, 0.2, 0.1);
+            const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffdd });
+            [-0.8, 0.8].forEach(x => {
+                const headlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+                headlight.position.set(x, 0.95, 5.15);
+                cabGroup.add(headlight);
+            });
+
+            // Side mirrors
+            const mirrorArm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 0.5), cabAccent);
+            mirrorArm.position.set(-1.2, 2.1, 4.7);
+            cabGroup.add(mirrorArm);
+            const mirrorArmR = mirrorArm.clone();
+            mirrorArmR.position.x = 1.2;
+            cabGroup.add(mirrorArmR);
+
+            const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.05), chromeMaterial);
+            mirror.position.set(-1.25, 2.15, 4.95);
+            cabGroup.add(mirror);
+            const mirrorR = mirror.clone();
+            mirrorR.position.x = 1.25;
+            cabGroup.add(mirrorR);
+
+            // Exhaust stacks
+            const exhaustGeometry = new THREE.CylinderGeometry(0.07, 0.07, 1.4, 12);
+            [-0.95, 0.95].forEach(x => {
+                const exhaust = new THREE.Mesh(exhaustGeometry, chromeMaterial);
+                exhaust.position.set(x, 2.3, 3.2);
+                cabGroup.add(exhaust);
+            });
+
+            // Fuel tanks
+            const tankGeometry = new THREE.CylinderGeometry(0.18, 0.18, 1.1, 16);
+            [-1.2, 1.2].forEach(x => {
+                const tank = new THREE.Mesh(tankGeometry, chromeMaterial);
+                tank.rotation.z = Math.PI / 2;
+                tank.position.set(x, 0.6, 3.2);
+                cabGroup.add(tank);
+            });
+
+            // Fifth wheel connector plate
+            const fifthWheel = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.8), darkMetalMaterial);
+            fifthWheel.position.set(0, 1.05, 2.6);
+            cabGroup.add(fifthWheel);
+
+            // Cab wheels
+            const cabWheelPositions = [
+                [-1.05, 0.45, 4.7], [1.05, 0.45, 4.7],
+                [-1.05, 0.45, 3.3], [1.05, 0.45, 3.3]
+            ];
+            cabWheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(...pos);
+                wheel.castShadow = true;
+                cabGroup.add(wheel);
+
+                const rimGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.36, 12);
+                const rimMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x888888,
+                    metalness: 0.8,
+                    roughness: 0.3
+                });
+                const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+                rim.rotation.z = Math.PI / 2;
+                rim.position.set(...pos);
+                cabGroup.add(rim);
+            });
+
+            cabGroup.position.set(0, 0, 0);
+            truck.add(cabGroup);
+
             scene.add(truck);
         }
 
@@ -1588,6 +1735,7 @@
                 if (!analyserNode) {
                     analyserNode = audioContext.createAnalyser();
                     analyserNode.fftSize = 1024;
+                    analyserNode.smoothingTimeConstant = 0.85;
                 }
 
                 if (!userTrackSource) {
@@ -1959,18 +2107,39 @@
         function detectBeat() {
             if (!analyserNode || !audioContext) return;
 
-            const data = new Uint8Array(analyserNode.frequencyBinCount);
-            analyserNode.getByteFrequencyData(data);
+            const freqData = new Uint8Array(analyserNode.frequencyBinCount);
+            analyserNode.getByteFrequencyData(freqData);
 
             let sum = 0;
-            const lowBins = 12;
+            const lowBins = 18;
             for (let i = 0; i < lowBins; i++) {
-                sum += data[i];
+                sum += freqData[i];
             }
-            const energy = sum / lowBins;
-            beatDetector.energyAvg = beatDetector.energyAvg * 0.9 + energy * 0.1;
+            const freqEnergy = sum / lowBins;
 
-            const threshold = beatDetector.energyAvg * beatDetector.sensitivity + 5;
+            const timeData = new Uint8Array(analyserNode.fftSize);
+            analyserNode.getByteTimeDomainData(timeData);
+            let rms = 0;
+            for (let i = 0; i < timeData.length; i++) {
+                const sample = (timeData[i] - 128) / 128;
+                rms += sample * sample;
+            }
+            rms = Math.sqrt(rms / timeData.length);
+            const rmsEnergy = rms * 120;
+
+            const energy = freqEnergy * 0.65 + rmsEnergy * 0.35;
+
+            beatDetector.energyHistory.push(energy);
+            if (beatDetector.energyHistory.length > beatDetector.historySize) {
+                beatDetector.energyHistory.shift();
+            }
+
+            const avg = beatDetector.energyHistory.reduce((acc, val) => acc + val, 0) / beatDetector.energyHistory.length;
+            const variance = beatDetector.energyHistory.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / beatDetector.energyHistory.length;
+            const dynamicThreshold = avg + Math.sqrt(variance) * beatDetector.sensitivity;
+            const threshold = Math.max(dynamicThreshold, avg * 1.05 + 6);
+            beatDetector.energyAvg = avg;
+
             const now = audioContext.currentTime;
 
             if (energy > threshold && (now - beatDetector.lastBeatTime) > beatDetector.minInterval) {
@@ -1983,7 +2152,9 @@
                     gameState.beatInterval = interval;
                     gameState.bpm = Math.round(60000 / interval);
                 }
+                return true;
             }
+            return false;
         }
 
         // Update beat notes positions
@@ -2401,6 +2572,19 @@
             }
         }
 
+        let lastNoteSpawnAudio = 0;
+        function spawnBeatNotesFromTrack(currentMs, force = false) {
+            const baseInterval = Math.max(180, Math.min(500, gameState.beatInterval / 2));
+            const shouldSpawn = (currentMs - lastNoteSpawnAudio) > baseInterval;
+
+            if (force || shouldSpawn) {
+                if (force || Math.random() > 0.15) {
+                    createBeatNote();
+                }
+                lastNoteSpawnAudio = currentMs;
+            }
+        }
+
         // Main game loop
         let lastTime = 0;
         let gameTime = 0;
@@ -2427,7 +2611,10 @@
 
             // Spawn notes
             if (useUserTrack && userTrack && !userTrack.paused) {
-                detectBeat();
+                const beatHit = detectBeat();
+                if (audioContext) {
+                    spawnBeatNotesFromTrack(audioContext.currentTime * 1000, beatHit);
+                }
             } else {
                 spawnBeatNotes(time);
             }
@@ -2471,7 +2658,9 @@
             gameState.isPaused = false;
             gameTime = 0;
             lastNoteSpawn = 0;
+            lastNoteSpawnAudio = 0;
             beatDetector.energyAvg = 0;
+            beatDetector.energyHistory = [];
             beatDetector.lastBeatTime = 0;
             beatDetector.prevBeatTime = 0;
 
