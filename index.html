@@ -437,6 +437,25 @@
             margin-top: 10px;
         }
 
+        .music-upload label {
+            color: #ccc;
+            font-size: 0.95rem;
+        }
+
+        .music-upload select {
+            background: rgba(0, 0, 0, 0.45);
+            border: 2px solid #ff6b35;
+            border-radius: 10px;
+            color: #fff;
+            padding: 10px 12px;
+            font-weight: bold;
+        }
+
+        .music-upload select:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.4);
+        }
+
         .music-upload input[type="file"] {
             color: #fff;
             background: rgba(0, 0, 0, 0.35);
@@ -857,6 +876,13 @@
                 <h3>Votre musique</h3>
                 <p>Chargez une chanson pour caler l'apparition des colis sur votre rythme.</p>
                 <div class="music-upload">
+                    <label for="track-select">Musique par défaut</label>
+                    <select id="track-select">
+                        <option value="atomic-parcel">Atomic Parcel</option>
+                        <option value="atomic-parcel-2">Atomic Parcel 2</option>
+                        <option value="upload">Import personnalisé</option>
+                        <option value="none">Aucune</option>
+                    </select>
                     <input type="file" id="music-upload" accept="audio/*">
                     <div class="track-status">Piste: <span id="track-status">Aucune</span></div>
                     <div class="music-hint">La détection de beat adapte le tempo automatiquement.</div>
@@ -1093,6 +1119,7 @@
             keySphereBtn: document.getElementById('key-sphere-btn'),
             keyPizzaBtn: document.getElementById('key-pizza-btn'),
             keyUltBtn: document.getElementById('key-ult-btn'),
+            trackSelect: document.getElementById('track-select'),
             musicUpload: document.getElementById('music-upload'),
             trackStatus: document.getElementById('track-status'),
             difficultyButtons: document.querySelectorAll('.difficulty-btn'),
@@ -1123,6 +1150,18 @@
         let useUserTrack = false;
         let analysisInProgress = false;
         let pendingTrackPlayback = false;
+        let lastUploadedTrackName = '';
+
+        const defaultTracks = {
+            'atomic-parcel': {
+                name: 'Atomic Parcel',
+                url: 'atomic parcel.mp3'
+            },
+            'atomic-parcel-2': {
+                name: 'Atomic Parcel 2',
+                url: 'atomic parcel-2.mp3'
+            }
+        };
 
         // Analysis tool state
         let analysisBuffer = null;
@@ -1609,7 +1648,7 @@
             elements.trackStatus.style.color = active ? '#00ff88' : '#fff';
         }
 
-        function setupUserTrack(file) {
+        function ensureUserTrackElement() {
             if (!audioContext) {
                 initAudio();
             }
@@ -1623,6 +1662,10 @@
                     updateTrackStatus('Terminée', false);
                 });
             }
+        }
+
+        function setupUserTrack(file) {
+            ensureUserTrackElement();
 
             const url = URL.createObjectURL(file);
             userTrack.src = url;
@@ -1646,9 +1689,42 @@
             }, { once: true });
         }
 
+        function setupUserTrackFromUrl(url, label) {
+            ensureUserTrackElement();
+            userTrack.src = url;
+            userTrack.load();
+
+            userTrack.addEventListener('canplaythrough', () => {
+                if (!analyserNode) {
+                    analyserNode = audioContext.createAnalyser();
+                    analyserNode.fftSize = 1024;
+                    analyserNode.smoothingTimeConstant = 0.85;
+                }
+
+                if (!userTrackSource) {
+                    userTrackSource = audioContext.createMediaElementSource(userTrack);
+                    userTrackSource.connect(analyserNode);
+                    analyserNode.connect(gainNode);
+                }
+
+                useUserTrack = true;
+                updateTrackStatus(label, true);
+            }, { once: true });
+        }
+
+        function clearUserTrack() {
+            useUserTrack = false;
+            pauseUserTrack();
+            if (userTrack) {
+                userTrack.src = '';
+            }
+        }
+
         function handleMusicUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
+            lastUploadedTrackName = file.name;
+            elements.trackSelect.value = 'upload';
             setupUserTrack(file);
             loadAnalysisBuffer(file).then((loaded) => {
                 if (loaded) {
@@ -1703,6 +1779,80 @@
                     pendingTrackPlayback = false;
                 }
             }
+        }
+
+        async function loadAnalysisBufferFromUrl(url, name) {
+            if (!audioContext) {
+                initAudio();
+            }
+            elements.exportBtn.disabled = true;
+            elements.analysisBpm.textContent = '--';
+            elements.analysisNotes.textContent = '0';
+            elements.analysisOffset.textContent = '--';
+            updateAnalysisMessage('Chargement du fichier audio...');
+            setAnalysisBusy(true);
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error('Bad response');
+                }
+                const arrayBuffer = await response.arrayBuffer();
+                analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                analysisResults = {
+                    bpm: 0,
+                    offset: 0,
+                    notes: [],
+                    onsets: [],
+                    subdivision: 4
+                };
+                analysisBuffer.fileName = name;
+                updateAnalysisMessage('Fichier prêt pour analyse.');
+                return true;
+            } catch (error) {
+                analysisBuffer = null;
+                updateAnalysisMessage('Impossible de décoder ce fichier audio.', true);
+                return false;
+            } finally {
+                setAnalysisBusy(false);
+                if (!analysisBuffer && pendingTrackPlayback && gameState.isPlaying && useUserTrack && userTrack && userTrack.paused) {
+                    playUserTrack(true);
+                    pendingTrackPlayback = false;
+                }
+            }
+        }
+
+        function applyTrackSelection(selection, { persist = true } = {}) {
+            if (persist) {
+                localStorage.setItem('atomic-parcel-track', selection);
+            }
+
+            if (selection === 'none') {
+                clearUserTrack();
+                updateTrackStatus('Aucune', false);
+                return;
+            }
+
+            if (selection === 'upload') {
+                if (lastUploadedTrackName && userTrack) {
+                    useUserTrack = true;
+                    updateTrackStatus(lastUploadedTrackName, true);
+                } else {
+                    useUserTrack = false;
+                    updateTrackStatus('Importez une piste', false);
+                }
+                return;
+            }
+
+            const track = defaultTracks[selection];
+            if (!track) return;
+
+            setupUserTrackFromUrl(track.url, track.name);
+            loadAnalysisBufferFromUrl(track.url, track.name).then((loaded) => {
+                if (loaded) {
+                    analyzeCurrentTrack({ auto: true });
+                }
+            });
         }
 
         function handleAnalysisUpload(e) {
@@ -2995,7 +3145,14 @@
             elements.analysisUpload.addEventListener('change', handleAnalysisUpload);
             elements.analyzeBtn.addEventListener('click', analyzeCurrentTrack);
             elements.exportBtn.addEventListener('click', exportAnalysisJson);
+            elements.trackSelect.addEventListener('change', (event) => {
+                applyTrackSelection(event.target.value);
+            });
             updateTrackStatus('Aucune', false);
+
+            const savedTrack = localStorage.getItem('atomic-parcel-track') || 'atomic-parcel';
+            elements.trackSelect.value = savedTrack;
+            applyTrackSelection(savedTrack, { persist: false });
 
             // Initial render
             renderer.render(scene, camera);
