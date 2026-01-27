@@ -1115,6 +1115,8 @@
         let userTrack;
         let userTrackSource;
         let useUserTrack = false;
+        let analysisInProgress = false;
+        let pendingTrackPlayback = false;
 
         // Analysis tool state
         let analysisBuffer = null;
@@ -1632,6 +1634,11 @@
             const file = e.target.files[0];
             if (!file) return;
             setupUserTrack(file);
+            loadAnalysisBuffer(file).then((loaded) => {
+                if (loaded) {
+                    analyzeCurrentTrack({ auto: true });
+                }
+            });
         }
 
         function updateAnalysisMessage(message, isError = false) {
@@ -1639,9 +1646,13 @@
             elements.analysisMessage.style.color = isError ? '#ff6b6b' : '#ddd';
         }
 
-        function handleAnalysisUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+        function setAnalysisBusy(isBusy) {
+            analysisInProgress = isBusy;
+            elements.analyzeBtn.disabled = isBusy || !analysisBuffer;
+            elements.exportBtn.disabled = isBusy || analysisResults.notes.length === 0;
+        }
+
+        async function loadAnalysisBuffer(file) {
             if (!audioContext) {
                 initAudio();
             }
@@ -1650,25 +1661,38 @@
             elements.analysisNotes.textContent = '0';
             elements.analysisOffset.textContent = '--';
             updateAnalysisMessage('Chargement du fichier audio...');
-            const reader = new FileReader();
-            reader.onload = async () => {
-                try {
-                    const arrayBuffer = reader.result;
-                    analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                    analysisResults = {
-                        bpm: 0,
-                        offset: 0,
-                        notes: [],
-                        onsets: [],
-                        subdivision: 4
-                    };
-                    analysisBuffer.fileName = file.name;
-                    updateAnalysisMessage('Fichier prêt pour analyse.');
-                } catch (error) {
-                    updateAnalysisMessage('Impossible de décoder ce fichier audio.', true);
+            setAnalysisBusy(true);
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                analysisResults = {
+                    bpm: 0,
+                    offset: 0,
+                    notes: [],
+                    onsets: [],
+                    subdivision: 4
+                };
+                analysisBuffer.fileName = file.name;
+                updateAnalysisMessage('Fichier prêt pour analyse.');
+                return true;
+            } catch (error) {
+                analysisBuffer = null;
+                updateAnalysisMessage('Impossible de décoder ce fichier audio.', true);
+                return false;
+            } finally {
+                setAnalysisBusy(false);
+                if (!analysisBuffer && pendingTrackPlayback && gameState.isPlaying && useUserTrack && userTrack && userTrack.paused) {
+                    playUserTrack(true);
+                    pendingTrackPlayback = false;
                 }
-            };
-            reader.readAsArrayBuffer(file);
+            }
+        }
+
+        function handleAnalysisUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            loadAnalysisBuffer(file);
         }
 
         function applyHannWindow(buffer, offset, size) {
@@ -1854,32 +1878,43 @@
             return notes;
         }
 
-        async function analyzeCurrentTrack() {
+        async function analyzeCurrentTrack({ auto = false } = {}) {
             if (!analysisBuffer) {
                 updateAnalysisMessage('Importez une musique avant de lancer l\'analyse.', true);
                 return;
             }
-            updateAnalysisMessage('Analyse en cours... cela peut prendre quelques secondes.');
+            setAnalysisBusy(true);
+            updateAnalysisMessage(auto ? 'Analyse automatique en cours... cela peut prendre quelques secondes.' : 'Analyse en cours... cela peut prendre quelques secondes.');
             await new Promise((resolve) => setTimeout(resolve, 50));
+            try {
+                const onsets = detectOnsets(analysisBuffer);
+                const bpm = estimateBpm(onsets);
+                const { times, offset, gridInterval } = quantizeOnsets(onsets, bpm, analysisResults.subdivision);
+                const notes = assignLanes(times, gridInterval);
 
-            const onsets = detectOnsets(analysisBuffer);
-            const bpm = estimateBpm(onsets);
-            const { times, offset, gridInterval } = quantizeOnsets(onsets, bpm, analysisResults.subdivision);
-            const notes = assignLanes(times, gridInterval);
+                analysisResults = {
+                    bpm,
+                    offset,
+                    notes,
+                    onsets,
+                    subdivision: analysisResults.subdivision
+                };
 
-            analysisResults = {
-                bpm,
-                offset,
-                notes,
-                onsets,
-                subdivision: analysisResults.subdivision
-            };
+                elements.analysisBpm.textContent = bpm.toString();
+                elements.analysisNotes.textContent = notes.length.toString();
+                elements.analysisOffset.textContent = `${offset.toFixed(2)}s`;
+                elements.exportBtn.disabled = notes.length === 0;
+                updateAnalysisMessage(`Analyse terminée : ${notes.length} notes quantifiées.`);
+            } catch (error) {
+                updateAnalysisMessage('Analyse impossible. Réessayez avec un autre fichier.', true);
+            } finally {
+                setAnalysisBusy(false);
 
-            elements.analysisBpm.textContent = bpm.toString();
-            elements.analysisNotes.textContent = notes.length.toString();
-            elements.analysisOffset.textContent = `${offset.toFixed(2)}s`;
-            elements.exportBtn.disabled = notes.length === 0;
-            updateAnalysisMessage(`Analyse terminée : ${notes.length} notes quantifiées.`);
+                if (pendingTrackPlayback && gameState.isPlaying && useUserTrack && userTrack && userTrack.paused) {
+                    playUserTrack(true);
+                }
+                pendingTrackPlayback = false;
+            }
         }
 
         function exportAnalysisJson() {
@@ -2864,7 +2899,12 @@
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
-            playUserTrack(true);
+            pendingTrackPlayback = false;
+            if (analysisInProgress) {
+                pendingTrackPlayback = true;
+            } else {
+                playUserTrack(true);
+            }
 
             // Start game loop
             lastTime = performance.now();
