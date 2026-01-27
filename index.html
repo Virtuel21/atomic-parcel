@@ -167,7 +167,19 @@
             gap: 16px;
         }
 
-        .fragile-gem {
+        .beat-note.express {
+            width: 150px;
+            height: 60px;
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+        }
+
+        .fragile-gem,
+        .combo-gem {
             width: 50px;
             height: 50px;
             border-radius: 10px;
@@ -189,6 +201,16 @@
             border: 3px solid #ff6b6b;
         }
 
+        .combo-gem.cube {
+            background: linear-gradient(135deg, #4a90d9, #2c5aa0);
+            border: 3px solid #6bb3ff;
+        }
+
+        .combo-gem.space {
+            background: linear-gradient(135deg, #444, #222);
+            border: 3px solid #888;
+        }
+
         .fragile-link {
             position: absolute;
             width: 110px;
@@ -196,6 +218,15 @@
             background: linear-gradient(90deg, rgba(255,255,255,0.4), rgba(255,255,255,0.9), rgba(255,255,255,0.4));
             border-radius: 4px;
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+        }
+
+        .express-link {
+            position: absolute;
+            width: 110px;
+            height: 6px;
+            background: linear-gradient(90deg, rgba(0,255,136,0.2), rgba(0,255,136,0.9), rgba(0,255,136,0.2));
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
         }
 
         .beat-note.hit {
@@ -260,6 +291,27 @@
         .key-icon {
             font-size: 0.8rem;
             margin-top: 2px;
+        }
+
+        .spacebar-icon {
+            position: relative;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            border: 3px solid #fff;
+            display: inline-block;
+            box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+        }
+
+        .spacebar-icon::after {
+            content: '';
+            position: absolute;
+            left: 4px;
+            right: 4px;
+            bottom: 6px;
+            height: 5px;
+            border-radius: 3px;
+            background: #fff;
         }
 
         /* Crosshair */
@@ -670,6 +722,14 @@
             margin: 5px 0;
         }
 
+        #game-over-message {
+            color: #ffd700;
+            font-size: 1.1rem;
+            margin-top: 15px;
+            max-width: 520px;
+            text-align: center;
+        }
+
         /* Power meter */
         #power-meter {
             position: absolute;
@@ -905,6 +965,7 @@
                 <p><strong>Combo:</strong> Enchainez les hits pour augmenter votre puissance!</p>
                 <p><strong>Ultime:</strong> 10 notes réussies = mode automatique 10 sec!</p>
                 <p><strong>Fragile:</strong> Appuyez sur <span class="key-hint">A</span> + <span class="key-hint">P</span> ensemble pour lancer le colis FRAGILE.</p>
+                <p><strong>Express:</strong> Appuyez sur <span class="key-hint">A</span> + <span class="key-hint"><span class="spacebar-icon"></span></span> pour expédier un colis express.</p>
             </div>
 
             <div class="instructions">
@@ -996,6 +1057,7 @@
                 <p>Précision: <span id="stat-accuracy">0%</span></p>
                 <p>Ultimes déclenchés: <span id="stat-ultimates">0</span></p>
             </div>
+            <div id="game-over-message"></div>
             <div class="menu-buttons">
                 <button class="menu-btn" id="restart-btn">REJOUER</button>
                 <button class="menu-btn secondary" id="menu-btn">MENU</button>
@@ -1133,6 +1195,7 @@
         const BASE_NOTE_SPEED = 300;
         const NOTE_WIDTH = 60;
         const FRAGILE_NOTE_WIDTH = 140;
+        const EXPRESS_NOTE_WIDTH = 150;
         const NOTE_SPACING = 20;
         let noteSpeed = BASE_NOTE_SPEED;
 
@@ -1145,6 +1208,16 @@
         const PACKAGE_PURGE_COUNT = 10;
         const FRAGILE_MULTIPLIER = 3;
         const FRAGILE_MULTIPLIER_DURATION = 8000;
+        const COMBO_NOTE_GAP = 240;
+        const TRUCK_DIMENSIONS = {
+            width: 2.4,
+            height: 2.8,
+            length: 10,
+            floorY: 0.85,
+            doorZ: 2.2
+        };
+        const TRUCK_CAPACITY = 28;
+        const TRUCK_OVERFLOW_LIMIT = 6;
 
         // DOM elements
         const elements = {
@@ -1197,7 +1270,8 @@
             analysisNotes: document.getElementById('analysis-notes'),
             analysisOffset: document.getElementById('analysis-offset'),
             analysisMessage: document.getElementById('analysis-message'),
-            fragileMultiplier: document.getElementById('fragile-multiplier')
+            fragileMultiplier: document.getElementById('fragile-multiplier'),
+            gameOverMessage: document.getElementById('game-over-message')
         };
 
         // Three.js variables
@@ -1273,11 +1347,19 @@
             return key.toUpperCase();
         }
 
+        function setKeyDisplay(element, key, { allowIcon = false } = {}) {
+            if (allowIcon && key === ' ') {
+                element.innerHTML = '<span class="spacebar-icon"></span>';
+                return;
+            }
+            element.textContent = getKeyDisplayName(key);
+        }
+
         // Update key display
         function updateKeyDisplays() {
-            elements.displayKeyCube.textContent = getKeyDisplayName(keyBindings.cube);
-            elements.displayKeySphere.textContent = getKeyDisplayName(keyBindings.sphere);
-            elements.displayKeyPizza.textContent = getKeyDisplayName(keyBindings.pizza);
+            setKeyDisplay(elements.displayKeyCube, keyBindings.cube);
+            setKeyDisplay(elements.displayKeySphere, keyBindings.sphere);
+            setKeyDisplay(elements.displayKeyPizza, keyBindings.pizza, { allowIcon: true });
 
             elements.keyCubeBtn.textContent = getKeyDisplayName(keyBindings.cube);
             elements.keySphereBtn.textContent = getKeyDisplayName(keyBindings.sphere);
@@ -2334,6 +2416,98 @@
                     group.add(top);
                     break;
 
+                case 'cereal':
+                    geometry = new THREE.BoxGeometry(0.35 * scale, 0.7 * scale, 0.2 * scale);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0xffcc66,
+                        roughness: 0.7,
+                        metalness: 0.1
+                    });
+                    const cerealBox = new THREE.Mesh(geometry, material);
+                    cerealBox.castShadow = true;
+                    group.add(cerealBox);
+                    const cerealLabel = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.3 * scale, 0.55 * scale),
+                        new THREE.MeshBasicMaterial({ color: 0xff6699 })
+                    );
+                    cerealLabel.position.z = 0.11 * scale;
+                    cerealLabel.position.y = 0.05 * scale;
+                    group.add(cerealLabel);
+                    break;
+
+                case 'plant':
+                    geometry = new THREE.CylinderGeometry(0.18 * scale, 0.25 * scale, 0.35 * scale, 16);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0x7a4a2b,
+                        roughness: 0.8
+                    });
+                    const pot = new THREE.Mesh(geometry, material);
+                    pot.castShadow = true;
+                    group.add(pot);
+                    const leafMaterial = new THREE.MeshStandardMaterial({
+                        color: 0x33aa55,
+                        roughness: 0.6
+                    });
+                    for (let i = 0; i < 6; i++) {
+                        const leaf = new THREE.Mesh(
+                            new THREE.ConeGeometry(0.1 * scale, 0.4 * scale, 6),
+                            leafMaterial
+                        );
+                        leaf.position.y = 0.3 * scale;
+                        leaf.rotation.z = (Math.PI / 3) * i;
+                        leaf.rotation.x = Math.PI / 2;
+                        group.add(leaf);
+                    }
+                    break;
+
+                case 'suitcase':
+                    geometry = new THREE.BoxGeometry(0.55 * scale, 0.35 * scale, 0.25 * scale);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0x3f4c6b,
+                        roughness: 0.4,
+                        metalness: 0.3
+                    });
+                    const suitcase = new THREE.Mesh(geometry, material);
+                    suitcase.castShadow = true;
+                    group.add(suitcase);
+                    const handle = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.2 * scale, 0.05 * scale, 0.05 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5 })
+                    );
+                    handle.position.y = 0.23 * scale;
+                    group.add(handle);
+                    break;
+
+                case 'duffel':
+                    geometry = new THREE.CylinderGeometry(0.25 * scale, 0.25 * scale, 0.5 * scale, 18);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0x2f6f6f,
+                        roughness: 0.5
+                    });
+                    const duffel = new THREE.Mesh(geometry, material);
+                    duffel.rotation.z = Math.PI / 2;
+                    duffel.castShadow = true;
+                    group.add(duffel);
+                    break;
+
+                case 'express':
+                    geometry = new THREE.BoxGeometry(0.5 * scale, 0.3 * scale, 0.4 * scale);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0x00cc88,
+                        roughness: 0.6,
+                        metalness: 0.2
+                    });
+                    const expressBox = new THREE.Mesh(geometry, material);
+                    expressBox.castShadow = true;
+                    group.add(expressBox);
+                    const expressStripe = new THREE.Mesh(
+                        new THREE.PlaneGeometry(0.45 * scale, 0.12 * scale),
+                        new THREE.MeshBasicMaterial({ color: 0x003322 })
+                    );
+                    expressStripe.position.z = 0.21 * scale;
+                    group.add(expressStripe);
+                    break;
+
                 case 'fragile':
                     geometry = new THREE.BoxGeometry(0.9 * scale, 0.6 * scale, 0.9 * scale);
                     material = new THREE.MeshStandardMaterial({
@@ -2392,6 +2566,26 @@
                     shape = new CANNON.Box(new CANNON.Vec3(0.35 * scale, 0.075 * scale, 0.35 * scale));
                     mass = 1;
                     break;
+                case 'cereal':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.175 * scale, 0.35 * scale, 0.1 * scale));
+                    mass = 1.4;
+                    break;
+                case 'plant':
+                    shape = new CANNON.Cylinder(0.2 * scale, 0.25 * scale, 0.35 * scale, 12);
+                    mass = 1.6;
+                    break;
+                case 'suitcase':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.275 * scale, 0.175 * scale, 0.125 * scale));
+                    mass = 2;
+                    break;
+                case 'duffel':
+                    shape = new CANNON.Cylinder(0.25 * scale, 0.25 * scale, 0.5 * scale, 12);
+                    mass = 1.8;
+                    break;
+                case 'express':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.25 * scale, 0.15 * scale, 0.2 * scale));
+                    mass = 1.6;
+                    break;
                 case 'fragile':
                     shape = new CANNON.Box(new CANNON.Vec3(0.45 * scale, 0.3 * scale, 0.45 * scale));
                     mass = 2.5;
@@ -2435,8 +2629,22 @@
         }
 
         // Launch a package
+        const packageVariants = {
+            cube: ['cube', 'cereal', 'cube'],
+            sphere: ['sphere', 'plant'],
+            pizza: ['pizza', 'suitcase', 'duffel'],
+            fragile: ['fragile'],
+            express: ['express', 'suitcase', 'plant']
+        };
+
+        function selectPackageVariant(type) {
+            const variants = packageVariants[type] || [type];
+            return variants[Math.floor(Math.random() * variants.length)];
+        }
+
         function launchPackage(type) {
-            const mesh = createPackageMesh(type);
+            const variant = selectPackageVariant(type);
+            const mesh = createPackageMesh(variant);
 
             // Start position (from the dock)
             const startPos = new THREE.Vector3(
@@ -2459,7 +2667,7 @@
                 -baseSpeed
             );
 
-            const body = createPackageBody(type,
+            const body = createPackageBody(variant,
                 new CANNON.Vec3(startPos.x, startPos.y, startPos.z),
                 velocity
             );
@@ -2467,7 +2675,7 @@
             packages.push({
                 mesh: mesh,
                 body: body,
-                type: type,
+                type: variant,
                 broken: false,
                 lifetime: 0,
                 breakTime: 0
@@ -2575,15 +2783,24 @@
             if (type === 'fragile') {
                 return FRAGILE_NOTE_WIDTH;
             }
+            if (type === 'express') {
+                return EXPRESS_NOTE_WIDTH;
+            }
             return NOTE_WIDTH;
         }
 
         function pickNoteType() {
-            const fragileChance = 0.12;
+            const fragileChance = 0.1;
+            const expressChance = 0.08;
+            const roll = Math.random();
             const types = ['cube', 'sphere', 'pizza'];
-            return Math.random() < fragileChance
-                ? 'fragile'
-                : types[Math.floor(Math.random() * types.length)];
+            if (roll < fragileChance) {
+                return 'fragile';
+            }
+            if (roll < fragileChance + expressChance) {
+                return 'express';
+            }
+            return types[Math.floor(Math.random() * types.length)];
         }
 
         function createBeatNote(type) {
@@ -2601,6 +2818,16 @@
                     <span class="fragile-link"></span>
                     <span class="fragile-gem cube">${cubeKey}</span>
                     <span class="fragile-gem sphere">${sphereKey}</span>
+                `;
+            } else if (type === 'express') {
+                const cubeKey = getKeyDisplayName(keyBindings.cube);
+                const spaceMarkup = keyBindings.pizza === ' '
+                    ? '<span class="spacebar-icon"></span>'
+                    : getKeyDisplayName(keyBindings.pizza);
+                note.innerHTML = `
+                    <span class="express-link"></span>
+                    <span class="combo-gem cube">${cubeKey}</span>
+                    <span class="combo-gem space">${spaceMarkup}</span>
                 `;
             } else {
                 let keyText = getKeyDisplayName(keyBindings[type]);
@@ -2625,7 +2852,11 @@
             return (requiredSpacing / noteSpeed) * 1000;
         }
 
-        function canSpawnNote(now = performance.now(), nextNoteWidth = NOTE_WIDTH) {
+        const comboNoteTypes = new Set(['fragile', 'express']);
+        let lastComboNoteTime = -Infinity;
+        let lastRegularNoteTime = -Infinity;
+
+        function canSpawnNote(now = performance.now(), nextNoteType = 'cube', nextNoteWidth = NOTE_WIDTH) {
             const spacingInterval = getSpawnSpacingInterval(nextNoteWidth);
             while (noteSpawnTimestamps.length && now - noteSpawnTimestamps[0] > 1000) {
                 noteSpawnTimestamps.shift();
@@ -2636,13 +2867,25 @@
             if (now - lastNoteSpawnTime < spacingInterval) {
                 return false;
             }
+            if (comboNoteTypes.has(nextNoteType)) {
+                if (now - lastRegularNoteTime < COMBO_NOTE_GAP) {
+                    return false;
+                }
+            } else if (now - lastComboNoteTime < COMBO_NOTE_GAP) {
+                return false;
+            }
             return true;
         }
 
-        function registerNoteSpawn(now = performance.now(), noteWidth = NOTE_WIDTH) {
+        function registerNoteSpawn(now = performance.now(), noteWidth = NOTE_WIDTH, noteType = 'cube') {
             noteSpawnTimestamps.push(now);
             lastNoteSpawnTime = now;
             lastNoteSpawnWidth = noteWidth;
+            if (comboNoteTypes.has(noteType)) {
+                lastComboNoteTime = now;
+            } else {
+                lastRegularNoteTime = now;
+            }
         }
 
         function shouldForceSpawn(now = performance.now()) {
@@ -2654,9 +2897,9 @@
         function spawnNoteIfAllowed(now = performance.now()) {
             const nextType = pickNoteType();
             const nextWidth = getNoteWidth(nextType);
-            if (canSpawnNote(now, nextWidth)) {
+            if (canSpawnNote(now, nextType, nextWidth)) {
                 createBeatNote(nextType);
-                registerNoteSpawn(now, nextWidth);
+                registerNoteSpawn(now, nextWidth, nextType);
                 return true;
             }
             return false;
@@ -2767,7 +3010,7 @@
             gameState.multiplier = Math.min(8, 1 + Math.floor(gameState.combo / 5));
             gameState.comboPower = Math.min(4, 1 + Math.floor(gameState.combo / 10));
 
-            const points = 50 * getEffectiveScoreMultiplier();
+            const points = (note.type === 'express' ? 70 : 50) * getEffectiveScoreMultiplier();
             gameState.score += points;
             updateScoreDisplay();
             updateComboDisplay();
@@ -2777,6 +3020,9 @@
             launchPackage(note.type);
             if (note.type === 'fragile') {
                 triggerFragileBonus();
+            }
+            if (note.type === 'express') {
+                triggerExpressBonus();
             }
             playBeatSound(600, 'sine', 0.1);
 
@@ -2871,11 +3117,104 @@
             return false;
         }
 
+        function checkExpressHit() {
+            const now = performance.now();
+            if (now - lastFragileTrigger < 150) {
+                return false;
+            }
+            lastFragileTrigger = now;
+
+            const hitZone = 300;
+            const hitWindow = 45;
+            const goodWindow = 80;
+            const okWindow = 115;
+
+            for (let i = 0; i < beatNotes.length; i++) {
+                const note = beatNotes[i];
+                if (note.hit || note.type !== 'express') continue;
+
+                const distance = Math.abs(note.position - hitZone);
+
+                if (distance < okWindow) {
+                    note.hit = true;
+                    note.element.classList.add('hit');
+                    gameState.hitNotes++;
+
+                    let points = 0;
+                    let feedback = '';
+                    let feedbackType = '';
+                    let isPerfect = false;
+
+                    if (distance < hitWindow) {
+                        points = 80;
+                        feedback = 'EXPRESS PARFAIT!';
+                        feedbackType = 'perfect';
+                        isPerfect = true;
+                        playBeatSound(700, 'sine', 0.12);
+                    } else if (distance < goodWindow) {
+                        points = 45;
+                        feedback = 'EXPRESS!';
+                        feedbackType = 'good';
+                        playBeatSound(520, 'sine', 0.12);
+                    } else {
+                        points = 25;
+                        feedback = 'EXPRESS OK';
+                        feedbackType = 'ok';
+                        playBeatSound(350, 'sine', 0.12);
+                    }
+
+                    gameState.combo++;
+                    if (gameState.combo > gameState.maxCombo) {
+                        gameState.maxCombo = gameState.combo;
+                    }
+                    gameState.multiplier = Math.min(8, 1 + Math.floor(gameState.combo / 5));
+                    gameState.comboPower = Math.min(4, 1 + Math.floor(gameState.combo / 10));
+
+                    if (isPerfect) {
+                        gameState.perfectStreak++;
+                    } else {
+                        gameState.perfectStreak = 0;
+                    }
+                    updatePerfectStreak();
+
+                    const totalPoints = points * getEffectiveScoreMultiplier();
+                    gameState.score += totalPoints;
+                    updateScoreDisplay();
+                    updateComboDisplay();
+                    addUltimateCharge(1);
+
+                    showFeedback(`${feedback} +${totalPoints}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
+
+                    triggerExpressBonus();
+                    launchPackage('express');
+
+                    setTimeout(() => {
+                        note.element.remove();
+                        const idx = beatNotes.indexOf(note);
+                        if (idx > -1) beatNotes.splice(idx, 1);
+                    }, 300);
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         function hasFragileNoteInWindow() {
             const hitZone = 300;
             const okWindow = 110;
             return beatNotes.some(note => {
                 if (note.hit || note.type !== 'fragile') return false;
+                return Math.abs(note.position - hitZone) < okWindow;
+            });
+        }
+
+        function hasExpressNoteInWindow() {
+            const hitZone = 300;
+            const okWindow = 115;
+            return beatNotes.some(note => {
+                if (note.hit || note.type !== 'express') return false;
                 return Math.abs(note.position - hitZone) < okWindow;
             });
         }
@@ -3094,6 +3433,12 @@
             showFeedback('FRAGILE x3 ! +5 EXPLOSIONS', 'ultimate', window.innerWidth / 2, window.innerHeight / 2 + 80);
         }
 
+        function triggerExpressBonus() {
+            showFeedback('EXPRESS + BONUS!', 'ultimate', window.innerWidth / 2, window.innerHeight / 2 + 80);
+            gameState.score += 75 * getEffectiveScoreMultiplier();
+            updateScoreDisplay();
+        }
+
         // Activate ultimate
         function activateUltimate() {
             if (gameState.ultimateCharge < 100 || gameState.ultimateActive) return;
@@ -3186,9 +3531,20 @@
                 }
             }
 
+            const pizzaKey = keyBindings.pizza;
+            if ((key === cubeKey || key === pizzaKey) && pressedKeys[cubeKey] && pressedKeys[pizzaKey]) {
+                const hitExpress = checkExpressHit();
+                if (hitExpress) {
+                    return;
+                }
+            }
+
             if (type && !gameState.ultimateActive) {
                 if (!checkNoteHit(type)) {
                     if ((type === 'cube' || type === 'sphere') && hasFragileNoteInWindow()) {
+                        return;
+                    }
+                    if ((type === 'cube' || type === 'pizza') && hasExpressNoteInWindow()) {
                         return;
                     }
                     // Wrong timing - penalty
@@ -3291,6 +3647,40 @@
             }
         }
 
+        function isPackageInsideTruck(pkg) {
+            const pos = pkg.mesh.position;
+            return (
+                pos.z < TRUCK_DIMENSIONS.doorZ &&
+                pos.z > -TRUCK_DIMENSIONS.length + 2.4 &&
+                Math.abs(pos.x) < TRUCK_DIMENSIONS.width / 2 + 0.2 &&
+                pos.y > TRUCK_DIMENSIONS.floorY - 0.3
+            );
+        }
+
+        function isPackageOverflowing(pkg) {
+            const pos = pkg.mesh.position;
+            const heightLimit = TRUCK_DIMENSIONS.height + TRUCK_DIMENSIONS.floorY + 0.4;
+            return (
+                pos.y > heightLimit ||
+                pos.z > TRUCK_DIMENSIONS.doorZ + 0.4
+            );
+        }
+
+        function checkTruckOverflow() {
+            let loadedCount = 0;
+            let overflowCount = 0;
+            for (const pkg of packages) {
+                if (pkg.broken) continue;
+                if (isPackageInsideTruck(pkg)) {
+                    loadedCount++;
+                }
+                if (isPackageOverflowing(pkg)) {
+                    overflowCount++;
+                }
+            }
+            return loadedCount >= TRUCK_CAPACITY && overflowCount >= TRUCK_OVERFLOW_LIMIT;
+        }
+
         // Update timer display
         function updateTimer() {
             const remaining = Math.max(0, gameDuration - gameTime);
@@ -3385,6 +3775,12 @@
             // Update physics
             updatePhysics(deltaTime);
 
+            // Check overflow loss
+            if (checkTruckOverflow()) {
+                endGame('Désolé, vous avez trop bien travaillé, les colis sont prêts à être livrés.');
+                return;
+            }
+
             // Play beat sounds
             if (!useUserTrack && time - gameState.lastBeatTime > gameState.beatInterval) {
                 playBackgroundBeat();
@@ -3423,6 +3819,8 @@
             noteSpawnTimestamps.length = 0;
             lastNoteSpawnTime = 0;
             lastNoteSpawnWidth = NOTE_WIDTH;
+            lastComboNoteTime = -Infinity;
+            lastRegularNoteTime = -Infinity;
             beatDetector.energyAvg = 0;
             beatDetector.energyHistory = [];
             beatDetector.lastBeatTime = 0;
@@ -3474,7 +3872,7 @@
         }
 
         // End game
-        function endGame() {
+        function endGame(reasonMessage = '') {
             gameState.isPlaying = false;
             pauseUserTrack();
             gameState.fragileMultiplier = 1;
@@ -3492,6 +3890,8 @@
                 ? Math.round((gameState.hitNotes / gameState.totalNotes) * 100)
                 : 0;
             elements.statAccuracy.textContent = accuracy + '%';
+            elements.gameOverMessage.textContent = reasonMessage;
+            elements.gameOverMessage.style.display = reasonMessage ? 'block' : 'none';
         }
 
         // Go to menu
@@ -3502,6 +3902,8 @@
             elements.startScreen.classList.remove('hidden');
             elements.gameOverScreen.style.display = 'none';
             elements.pauseScreen.style.display = 'none';
+            elements.gameOverMessage.textContent = '';
+            elements.gameOverMessage.style.display = 'none';
         }
 
         // Initialize everything
