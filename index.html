@@ -587,6 +587,55 @@
             font-size: 0.85rem;
         }
 
+        .model-tools {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .model-tools input[type="file"],
+        .model-tools input[type="url"] {
+            color: #fff;
+            background: rgba(0, 0, 0, 0.35);
+            border: 2px dashed #7bdff6;
+            border-radius: 10px;
+            padding: 12px;
+        }
+
+        .model-tools input[type="url"] {
+            border-style: solid;
+        }
+
+        .model-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .model-actions button {
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+            background: #2c5aa0;
+            color: #fff;
+        }
+
+        .model-actions button.secondary {
+            background: #444;
+        }
+
+        .model-status {
+            font-size: 0.95rem;
+            color: #7bdff6;
+        }
+
+        .model-status.error {
+            color: #ff6b6b;
+        }
+
         .analysis-tool {
             background: rgba(255, 255, 255, 0.08);
             padding: 20px;
@@ -1028,6 +1077,21 @@
                 </div>
             </div>
 
+            <div class="instructions">
+                <h3>Modèle 3D du camion</h3>
+                <p>Le modèle par défaut est procédural. Importez un modèle <strong>.glb</strong> (recommandé) ou fournissez une URL publique.</p>
+                <div class="model-tools">
+                    <input type="file" id="model-upload" accept=".glb,.gltf">
+                    <input type="url" id="model-url" placeholder="https://exemple.com/mon-camion.glb">
+                    <div class="model-actions">
+                        <button id="load-model-btn">Charger l'URL</button>
+                        <button id="reset-model-btn" class="secondary">Revenir au modèle procédural</button>
+                    </div>
+                    <div class="model-status" id="model-status">Camion procédural actif.</div>
+                    <div class="music-hint">Astuce : utilisez un fichier .glb pour éviter les ressources externes et les problèmes de CORS.</div>
+                </div>
+            </div>
+
             <div class="analysis-tool">
                 <h3>Outil de map rythmique</h3>
                 <p class="music-hint">Importez une musique pour détecter les temps forts, estimer le BPM et générer une map jouable.</p>
@@ -1184,7 +1248,7 @@
             length: 10
         };
 
-        const trailerModelUrl = 'truck_trailer_free/scene.gltf';
+        const trailerModelUrl = '';
 
         // Game state
         const gameState = {
@@ -1238,8 +1302,6 @@
         const ULTIMATE_DURATION = 10000; // 10 seconds
         const PACKAGE_BREAK_COMBO_REQUIRED = 10;
         const DEFAULT_GAME_DURATION = 90000; // 90 seconds
-        const MAX_ACTIVE_PACKAGES = 50;
-        const PACKAGE_PURGE_COUNT = 10;
         const FRAGILE_MULTIPLIER = 3;
         const FRAGILE_MULTIPLIER_DURATION = 8000;
         const COMBO_NOTE_GAP = 240;
@@ -1296,6 +1358,11 @@
             trackSelect: document.getElementById('track-select'),
             musicUpload: document.getElementById('music-upload'),
             trackStatus: document.getElementById('track-status'),
+            modelUpload: document.getElementById('model-upload'),
+            modelUrl: document.getElementById('model-url'),
+            loadModelBtn: document.getElementById('load-model-btn'),
+            resetModelBtn: document.getElementById('reset-model-btn'),
+            modelStatus: document.getElementById('model-status'),
             difficultyButtons: document.querySelectorAll('.difficulty-btn'),
             analysisUpload: document.getElementById('analysis-upload'),
             analyzeBtn: document.getElementById('analyze-btn'),
@@ -1774,72 +1841,153 @@
             targetGroup.add(interiorLight2);
         }
 
-        // Create the truck/trailer - realistic semi-trailer interior
-        function createTruck() {
-            truck = new THREE.Group();
-            scene.add(truck);
+        function setModelStatus(message, isError = false) {
+            if (!elements.modelStatus) return;
+            elements.modelStatus.textContent = message;
+            elements.modelStatus.classList.toggle('error', isError);
+        }
 
+        function clearTruckContents() {
+            while (truck.children.length > 0) {
+                truck.remove(truck.children[0]);
+            }
+        }
+
+        function applyTrailerModel(trailerModel) {
+            trailerModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            const boundingBox = new THREE.Box3().setFromObject(trailerModel);
+            const size = new THREE.Vector3();
+            boundingBox.getSize(size);
+
+            if (!size.x || !size.y || !size.z) {
+                throw new Error('Trailer model has invalid bounds');
+            }
+
+            const targetSize = new THREE.Vector3(
+                trailerDimensions.width,
+                trailerDimensions.height,
+                trailerDimensions.length
+            );
+            const scale = Math.min(
+                targetSize.x / size.x,
+                targetSize.y / size.y,
+                targetSize.z / size.z
+            );
+            trailerModel.scale.setScalar(scale);
+
+            boundingBox.setFromObject(trailerModel);
+            const center = new THREE.Vector3();
+            boundingBox.getCenter(center);
+            trailerModel.position.sub(center);
+            trailerModel.position.y += trailerDimensions.height / 2 + 0.8;
+            trailerModel.position.z += -trailerDimensions.length / 2 + 2;
+
+            clearTruckContents();
+            truck.add(trailerModel);
+            addTrailerInteriorLights(truck);
+        }
+
+        function useProceduralTrailer() {
+            clearTruckContents();
+            buildProceduralTrailer(truck);
+            setModelStatus('Camion procédural actif.');
+        }
+
+        function loadTrailerFromUrl(url) {
             if (!THREE.GLTFLoader) {
                 console.warn('GLTFLoader missing, using procedural trailer.');
-                buildProceduralTrailer(truck);
+                useProceduralTrailer();
                 return;
             }
 
+            if (!url) {
+                setModelStatus('Veuillez saisir une URL valide.', true);
+                return;
+            }
+
+            setModelStatus('Chargement du modèle depuis l’URL...');
             const loader = new THREE.GLTFLoader();
             loader.load(
-                trailerModelUrl,
+                url,
                 (gltf) => {
                     try {
-                        const trailerModel = gltf.scene;
-                        trailerModel.traverse((child) => {
-                            if (child.isMesh) {
-                                child.castShadow = true;
-                                child.receiveShadow = true;
-                            }
-                        });
-
-                        const boundingBox = new THREE.Box3().setFromObject(trailerModel);
-                        const size = new THREE.Vector3();
-                        boundingBox.getSize(size);
-
-                        if (!size.x || !size.y || !size.z) {
-                            console.warn('Trailer model has invalid bounds, using procedural trailer.');
-                            buildProceduralTrailer(truck);
-                            return;
-                        }
-
-                        const targetSize = new THREE.Vector3(
-                            trailerDimensions.width,
-                            trailerDimensions.height,
-                            trailerDimensions.length
-                        );
-                        const scale = Math.min(
-                            targetSize.x / size.x,
-                            targetSize.y / size.y,
-                            targetSize.z / size.z
-                        );
-                        trailerModel.scale.setScalar(scale);
-
-                        boundingBox.setFromObject(trailerModel);
-                        const center = new THREE.Vector3();
-                        boundingBox.getCenter(center);
-                        trailerModel.position.sub(center);
-                        trailerModel.position.y += trailerDimensions.height / 2 + 0.8;
-                        trailerModel.position.z += -trailerDimensions.length / 2 + 2;
-
-                        truck.add(trailerModel);
-                        addTrailerInteriorLights(truck);
+                        applyTrailerModel(gltf.scene);
+                        setModelStatus('Modèle chargé depuis l’URL.');
                     } catch (error) {
                         console.warn('Failed to initialize trailer model, using procedural trailer.', error);
-                        buildProceduralTrailer(truck);
+                        useProceduralTrailer();
+                        setModelStatus('Impossible de charger ce modèle. Retour au procédural.', true);
                     }
                 },
                 undefined,
                 (error) => {
                     console.warn('Failed to load trailer model, using procedural trailer.', error);
-                    buildProceduralTrailer(truck);
+                    useProceduralTrailer();
+                    setModelStatus('Erreur de chargement (URL/CORS). Retour au procédural.', true);
                 }
             );
+        }
+
+        function loadTrailerFromFile(file) {
+            if (!file) return;
+            if (!THREE.GLTFLoader) {
+                console.warn('GLTFLoader missing, using procedural trailer.');
+                useProceduralTrailer();
+                return;
+            }
+
+            setModelStatus(`Chargement du modèle ${file.name}...`);
+            const loader = new THREE.GLTFLoader();
+            const reader = new FileReader();
+            const isBinary = file.name.toLowerCase().endsWith('.glb');
+
+            reader.onload = (event) => {
+                const data = event.target.result;
+                loader.parse(
+                    data,
+                    '',
+                    (gltf) => {
+                        try {
+                            applyTrailerModel(gltf.scene);
+                            setModelStatus(`Modèle chargé : ${file.name}`);
+                        } catch (error) {
+                            console.warn('Failed to initialize trailer model, using procedural trailer.', error);
+                            useProceduralTrailer();
+                            setModelStatus('Modèle invalide. Retour au procédural.', true);
+                        }
+                    },
+                    (error) => {
+                        console.warn('Failed to parse trailer model, using procedural trailer.', error);
+                        useProceduralTrailer();
+                        setModelStatus('Erreur de lecture du modèle. Retour au procédural.', true);
+                    }
+                );
+            };
+
+            if (isBinary) {
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.readAsText(file);
+            }
+        }
+
+        // Create the truck/trailer - realistic semi-trailer interior
+        function createTruck() {
+            truck = new THREE.Group();
+            scene.add(truck);
+
+            if (!trailerModelUrl) {
+                useProceduralTrailer();
+                return;
+            }
+
+            loadTrailerFromUrl(trailerModelUrl);
         }
 
         // Initialize Cannon.js physics
@@ -2812,7 +2960,6 @@
                 lifetime: 0,
                 breakTime: 0
             });
-            enforcePackageLimit();
 
             // Play throw sound - more intense with combo
             const soundFreq = 150 + power * 100 + comboPower * 50;
@@ -3532,24 +3679,6 @@
             }
         }
 
-        function removePackageSilently(pkg) {
-            scene.remove(pkg.mesh);
-            if (pkg.body) {
-                world.removeBody(pkg.body);
-            }
-        }
-
-        function enforcePackageLimit() {
-            if (packages.length < MAX_ACTIVE_PACKAGES) return;
-            const removeCount = Math.min(PACKAGE_PURGE_COUNT, packages.length);
-            for (let i = 0; i < removeCount; i++) {
-                const pkg = packages.shift();
-                if (pkg) {
-                    removePackageSilently(pkg);
-                }
-            }
-        }
-
         function explodeRandomPackages(count) {
             let exploded = 0;
             for (let i = 0; i < packages.length && exploded < count; i++) {
@@ -4066,6 +4195,20 @@
             elements.analysisUpload.addEventListener('change', handleAnalysisUpload);
             elements.analyzeBtn.addEventListener('click', analyzeCurrentTrack);
             elements.exportBtn.addEventListener('click', exportAnalysisJson);
+            elements.modelUpload.addEventListener('change', (event) => {
+                loadTrailerFromFile(event.target.files[0]);
+            });
+            elements.loadModelBtn.addEventListener('click', () => {
+                loadTrailerFromUrl(elements.modelUrl.value.trim());
+            });
+            elements.modelUrl.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    loadTrailerFromUrl(elements.modelUrl.value.trim());
+                }
+            });
+            elements.resetModelBtn.addEventListener('click', () => {
+                useProceduralTrailer();
+            });
             elements.trackSelect.addEventListener('change', (event) => {
                 applyTrackSelection(event.target.value);
             });
