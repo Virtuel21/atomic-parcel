@@ -626,6 +626,28 @@
             cursor: not-allowed;
         }
 
+        .analysis-progress {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .analysis-progress.active {
+            display: block;
+        }
+
+        .analysis-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff88, #4a90d9);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+            transition: width 0.2s ease;
+        }
+
         .analysis-status {
             font-size: 0.95rem;
             color: #ddd;
@@ -1020,6 +1042,9 @@
                     Décalage : <strong id="analysis-offset">--</strong>
                 </div>
                 <div class="analysis-status" id="analysis-message">Aucune analyse en cours.</div>
+                <div class="analysis-progress" id="analysis-progress">
+                    <div class="analysis-progress-fill" id="analysis-progress-fill"></div>
+                </div>
             </div>
 
             <div class="instructions">
@@ -1136,6 +1161,7 @@
 
     <!-- Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
     <!-- Cannon.js for physics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
@@ -1151,6 +1177,14 @@
             pizza: ' ',
             ultimate: 'e'
         };
+
+        const trailerDimensions = {
+            width: 2.4,
+            height: 2.8,
+            length: 10
+        };
+
+        const trailerModelUrl = 'truck_trailer_free/scene.gltf';
 
         // Game state
         const gameState = {
@@ -1270,6 +1304,8 @@
             analysisNotes: document.getElementById('analysis-notes'),
             analysisOffset: document.getElementById('analysis-offset'),
             analysisMessage: document.getElementById('analysis-message'),
+            analysisProgress: document.getElementById('analysis-progress'),
+            analysisProgressFill: document.getElementById('analysis-progress-fill'),
             fragileMultiplier: document.getElementById('fragile-multiplier'),
             gameOverMessage: document.getElementById('game-over-message')
         };
@@ -1529,9 +1565,8 @@
 
         }
 
-        // Create the truck/trailer - realistic semi-trailer interior
-        function createTruck() {
-            truck = new THREE.Group();
+        function buildProceduralTrailer(targetGroup) {
+            const { width: trailerWidth, height: trailerHeight, length: trailerLength } = trailerDimensions;
 
             // Materials
             const metalMaterial = new THREE.MeshStandardMaterial({
@@ -1552,10 +1587,6 @@
                 metalness: 0.1
             });
 
-            const trailerWidth = 2.4;
-            const trailerHeight = 2.8;
-            const trailerLength = 10;
-
             // Trailer exterior shell
             const shellGeometry = new THREE.BoxGeometry(trailerWidth + 0.2, trailerHeight + 0.2, trailerLength);
             const shellMaterial = new THREE.MeshStandardMaterial({
@@ -1569,7 +1600,7 @@
             const shell = new THREE.Mesh(shellGeometry, shellMaterial);
             shell.position.set(0, trailerHeight / 2 + 0.8, -trailerLength / 2 + 2);
             shell.castShadow = true;
-            truck.add(shell);
+            targetGroup.add(shell);
 
             // Exterior skin for the trailer (semi-transparent so we still see packages)
             const skinGeometry = new THREE.BoxGeometry(trailerWidth + 0.05, trailerHeight + 0.05, trailerLength - 0.2);
@@ -1583,14 +1614,14 @@
             const trailerSkin = new THREE.Mesh(skinGeometry, skinMaterial);
             trailerSkin.position.set(0, trailerHeight / 2 + 0.82, -trailerLength / 2 + 1.9);
             trailerSkin.castShadow = true;
-            truck.add(trailerSkin);
+            targetGroup.add(trailerSkin);
 
             // Interior floor (wooden planks)
             const floorGeometry = new THREE.BoxGeometry(trailerWidth - 0.1, 0.1, trailerLength - 0.2);
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
             floor.position.set(0, 0.85, -trailerLength / 2 + 2);
             floor.receiveShadow = true;
-            truck.add(floor);
+            targetGroup.add(floor);
 
             // Floor planks detail
             for (let i = 0; i < 20; i++) {
@@ -1599,7 +1630,7 @@
                     darkMetalMaterial
                 );
                 plankLine.position.set(0, 0.86, 1.5 - i * 0.5);
-                truck.add(plankLine);
+                targetGroup.add(plankLine);
             }
 
             // Interior walls with corrugated metal effect (ribs)
@@ -1613,7 +1644,7 @@
                     metalMaterial
                 );
                 rib.position.set(-trailerWidth / 2 + 0.1, trailerHeight / 2 + 0.85, 1.8 - i * ribSpacing);
-                truck.add(rib);
+                targetGroup.add(rib);
             }
 
             // Right wall ribs
@@ -1623,7 +1654,7 @@
                     metalMaterial
                 );
                 rib.position.set(trailerWidth / 2 - 0.1, trailerHeight / 2 + 0.85, 1.8 - i * ribSpacing);
-                truck.add(rib);
+                targetGroup.add(rib);
             }
 
             // Ceiling ribs
@@ -1633,14 +1664,14 @@
                     metalMaterial
                 );
                 rib.position.set(0, trailerHeight + 0.7, 1.8 - i * ribSpacing);
-                truck.add(rib);
+                targetGroup.add(rib);
             }
 
             // Back wall (inside)
             const backWallGeometry = new THREE.BoxGeometry(trailerWidth - 0.2, trailerHeight - 0.2, 0.1);
             const backWall = new THREE.Mesh(backWallGeometry, metalMaterial);
             backWall.position.set(0, trailerHeight / 2 + 0.85, -trailerLength + 2.5);
-            truck.add(backWall);
+            targetGroup.add(backWall);
 
             // Interior lighting (LED strips)
             const ledGeometry = new THREE.BoxGeometry(0.05, 0.05, trailerLength - 1);
@@ -1648,20 +1679,20 @@
 
             const ledLeft = new THREE.Mesh(ledGeometry, ledMaterial);
             ledLeft.position.set(-trailerWidth / 2 + 0.2, trailerHeight + 0.5, -trailerLength / 2 + 2);
-            truck.add(ledLeft);
+            targetGroup.add(ledLeft);
 
             const ledRight = new THREE.Mesh(ledGeometry, ledMaterial);
             ledRight.position.set(trailerWidth / 2 - 0.2, trailerHeight + 0.5, -trailerLength / 2 + 2);
-            truck.add(ledRight);
+            targetGroup.add(ledRight);
 
             // Interior lights
             const interiorLight1 = new THREE.PointLight(0xffffdd, 0.9, 12);
             interiorLight1.position.set(0, trailerHeight + 0.3, -2);
-            truck.add(interiorLight1);
+            targetGroup.add(interiorLight1);
 
             const interiorLight2 = new THREE.PointLight(0xffffdd, 0.6, 10);
             interiorLight2.position.set(0, trailerHeight + 0.3, -5);
-            truck.add(interiorLight2);
+            targetGroup.add(interiorLight2);
 
             // Tie-down rails on floor
             const railGeometry = new THREE.BoxGeometry(0.1, 0.05, trailerLength - 0.5);
@@ -1673,11 +1704,11 @@
 
             const railLeft = new THREE.Mesh(railGeometry, railMaterial);
             railLeft.position.set(-trailerWidth / 2 + 0.3, 0.92, -trailerLength / 2 + 2);
-            truck.add(railLeft);
+            targetGroup.add(railLeft);
 
             const railRight = new THREE.Mesh(railGeometry, railMaterial);
             railRight.position.set(trailerWidth / 2 - 0.3, 0.92, -trailerLength / 2 + 2);
-            truck.add(railRight);
+            targetGroup.add(railRight);
 
             // E-Track vertical rails on walls
             for (let z = 0; z < 4; z++) {
@@ -1686,11 +1717,11 @@
                     railMaterial
                 );
                 eTrack.position.set(-trailerWidth / 2 + 0.15, trailerHeight / 2 + 0.85, 0 - z * 2);
-                truck.add(eTrack);
+                targetGroup.add(eTrack);
 
                 const eTrackR = eTrack.clone();
                 eTrackR.position.x = trailerWidth / 2 - 0.15;
-                truck.add(eTrackR);
+                targetGroup.add(eTrackR);
             }
 
             // Door frame (open position)
@@ -1709,7 +1740,7 @@
                 frameMaterial
             );
             topFrame.position.set(0, trailerHeight + 0.85, 2.1);
-            truck.add(topFrame);
+            targetGroup.add(topFrame);
 
             // Side frames
             const sideFrame = new THREE.Mesh(
@@ -1717,11 +1748,11 @@
                 frameMaterial
             );
             sideFrame.position.set(-trailerWidth / 2 - 0.1, trailerHeight / 2 + 0.8, 2.1);
-            truck.add(sideFrame);
+            targetGroup.add(sideFrame);
 
             const sideFrameR = sideFrame.clone();
             sideFrameR.position.x = trailerWidth / 2 + 0.1;
-            truck.add(sideFrameR);
+            targetGroup.add(sideFrameR);
 
             // Bottom frame
             const bottomFrame = new THREE.Mesh(
@@ -1729,9 +1760,86 @@
                 frameMaterial
             );
             bottomFrame.position.set(0, 0.8, 2.1);
-            truck.add(bottomFrame);
+            targetGroup.add(bottomFrame);
+        }
 
+        function addTrailerInteriorLights(targetGroup) {
+            const { height: trailerHeight } = trailerDimensions;
+            const interiorLight1 = new THREE.PointLight(0xffffdd, 0.9, 12);
+            interiorLight1.position.set(0, trailerHeight + 0.3, -2);
+            targetGroup.add(interiorLight1);
+
+            const interiorLight2 = new THREE.PointLight(0xffffdd, 0.6, 10);
+            interiorLight2.position.set(0, trailerHeight + 0.3, -5);
+            targetGroup.add(interiorLight2);
+        }
+
+        // Create the truck/trailer - realistic semi-trailer interior
+        function createTruck() {
+            truck = new THREE.Group();
             scene.add(truck);
+
+            if (!THREE.GLTFLoader) {
+                console.warn('GLTFLoader missing, using procedural trailer.');
+                buildProceduralTrailer(truck);
+                return;
+            }
+
+            const loader = new THREE.GLTFLoader();
+            loader.load(
+                trailerModelUrl,
+                (gltf) => {
+                    try {
+                        const trailerModel = gltf.scene;
+                        trailerModel.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
+
+                        const boundingBox = new THREE.Box3().setFromObject(trailerModel);
+                        const size = new THREE.Vector3();
+                        boundingBox.getSize(size);
+
+                        if (!size.x || !size.y || !size.z) {
+                            console.warn('Trailer model has invalid bounds, using procedural trailer.');
+                            buildProceduralTrailer(truck);
+                            return;
+                        }
+
+                        const targetSize = new THREE.Vector3(
+                            trailerDimensions.width,
+                            trailerDimensions.height,
+                            trailerDimensions.length
+                        );
+                        const scale = Math.min(
+                            targetSize.x / size.x,
+                            targetSize.y / size.y,
+                            targetSize.z / size.z
+                        );
+                        trailerModel.scale.setScalar(scale);
+
+                        boundingBox.setFromObject(trailerModel);
+                        const center = new THREE.Vector3();
+                        boundingBox.getCenter(center);
+                        trailerModel.position.sub(center);
+                        trailerModel.position.y += trailerDimensions.height / 2 + 0.8;
+                        trailerModel.position.z += -trailerDimensions.length / 2 + 2;
+
+                        truck.add(trailerModel);
+                        addTrailerInteriorLights(truck);
+                    } catch (error) {
+                        console.warn('Failed to initialize trailer model, using procedural trailer.', error);
+                        buildProceduralTrailer(truck);
+                    }
+                },
+                undefined,
+                (error) => {
+                    console.warn('Failed to load trailer model, using procedural trailer.', error);
+                    buildProceduralTrailer(truck);
+                }
+            );
         }
 
         // Initialize Cannon.js physics
@@ -1749,9 +1857,7 @@
             world.addBody(groundBody);
 
             // Truck interior colliders
-            const trailerWidth = 2.4;
-            const trailerHeight = 2.8;
-            const trailerLength = 10;
+            const { width: trailerWidth, height: trailerHeight, length: trailerLength } = trailerDimensions;
 
             // Floor
             const floorShape = new CANNON.Box(new CANNON.Vec3(trailerWidth / 2, 0.05, trailerLength / 2));
@@ -1897,10 +2003,22 @@
             elements.analysisMessage.style.color = isError ? '#ff6b6b' : '#ddd';
         }
 
+        function updateAnalysisProgress(percent) {
+            if (!elements.analysisProgress || !elements.analysisProgressFill) return;
+            const clamped = Math.max(0, Math.min(100, percent));
+            elements.analysisProgressFill.style.width = `${clamped}%`;
+        }
+
         function setAnalysisBusy(isBusy) {
             analysisInProgress = isBusy;
             elements.analyzeBtn.disabled = isBusy || !analysisBuffer;
             elements.exportBtn.disabled = isBusy || analysisResults.notes.length === 0;
+            if (elements.analysisProgress) {
+                elements.analysisProgress.classList.toggle('active', isBusy);
+                if (!isBusy) {
+                    updateAnalysisProgress(0);
+                }
+            }
         }
 
         async function loadAnalysisBuffer(file) {
@@ -1913,10 +2031,14 @@
             elements.analysisOffset.textContent = '--';
             updateAnalysisMessage('Chargement du fichier audio...');
             setAnalysisBusy(true);
+            updateAnalysisProgress(10);
 
             try {
+                await new Promise((resolve) => setTimeout(resolve, 0));
                 const arrayBuffer = await file.arrayBuffer();
+                updateAnalysisProgress(45);
                 analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                updateAnalysisProgress(80);
                 analysisResults = {
                     bpm: 0,
                     offset: 0,
@@ -1926,6 +2048,7 @@
                 };
                 analysisBuffer.fileName = file.name;
                 updateAnalysisMessage('Fichier prêt pour analyse.');
+                updateAnalysisProgress(100);
                 return true;
             } catch (error) {
                 analysisBuffer = null;
@@ -1950,6 +2073,7 @@
             elements.analysisOffset.textContent = '--';
             updateAnalysisMessage('Chargement du fichier audio...');
             setAnalysisBusy(true);
+            updateAnalysisProgress(10);
 
             try {
                 const response = await fetch(url);
@@ -1957,7 +2081,9 @@
                     throw new Error('Bad response');
                 }
                 const arrayBuffer = await response.arrayBuffer();
+                updateAnalysisProgress(45);
                 analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                updateAnalysisProgress(80);
                 analysisResults = {
                     bpm: 0,
                     offset: 0,
@@ -1967,6 +2093,7 @@
                 };
                 analysisBuffer.fileName = name;
                 updateAnalysisMessage('Fichier prêt pour analyse.');
+                updateAnalysisProgress(100);
                 return true;
             } catch (error) {
                 analysisBuffer = null;
@@ -2210,12 +2337,16 @@
             }
             setAnalysisBusy(true);
             updateAnalysisMessage(auto ? 'Analyse automatique en cours... cela peut prendre quelques secondes.' : 'Analyse en cours... cela peut prendre quelques secondes.');
+            updateAnalysisProgress(5);
             await new Promise((resolve) => setTimeout(resolve, 50));
             try {
                 const onsets = detectOnsets(analysisBuffer);
+                updateAnalysisProgress(55);
                 const bpm = estimateBpm(onsets);
                 const { times, offset, gridInterval } = quantizeOnsets(onsets, bpm, analysisResults.subdivision);
+                updateAnalysisProgress(75);
                 const notes = assignLanes(times, gridInterval);
+                updateAnalysisProgress(90);
 
                 analysisResults = {
                     bpm,
@@ -2230,6 +2361,7 @@
                 elements.analysisOffset.textContent = `${offset.toFixed(2)}s`;
                 elements.exportBtn.disabled = notes.length === 0;
                 updateAnalysisMessage(`Analyse terminée : ${notes.length} notes quantifiées.`);
+                updateAnalysisProgress(100);
             } catch (error) {
                 updateAnalysisMessage('Analyse impossible. Réessayez avec un autre fichier.', true);
             } finally {
@@ -2830,8 +2962,12 @@
                     <span class="combo-gem space">${spaceMarkup}</span>
                 `;
             } else {
-                let keyText = getKeyDisplayName(keyBindings[type]);
-                note.textContent = keyText;
+                if (type === 'pizza' && keyBindings.pizza === ' ') {
+                    note.innerHTML = '<span class="spacebar-icon"></span>';
+                } else {
+                    let keyText = getKeyDisplayName(keyBindings[type]);
+                    note.textContent = keyText;
+                }
             }
 
             elements.rhythmBar.appendChild(note);
