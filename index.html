@@ -1042,6 +1042,12 @@
         let maxNotesPerSecond = difficultySettings[currentDifficulty].max;
         let minNotesPerSecond = difficultySettings[currentDifficulty].min;
         const noteSpawnTimestamps = [];
+        let lastNoteSpawnTime = 0;
+
+        const BASE_NOTE_SPEED = 300;
+        const NOTE_WIDTH = 60;
+        const NOTE_SPACING = 20;
+        let noteSpeed = BASE_NOTE_SPEED;
 
         // Constants
         const ULTIMATE_CHARGE_REQUIRED = 25;
@@ -1173,9 +1179,19 @@
             const settings = difficultySettings[selected];
             minNotesPerSecond = settings.min;
             maxNotesPerSecond = settings.max;
+            updateNoteSpeed();
             elements.difficultyButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.difficulty === selected);
             });
+        }
+
+        function updateNoteSpeed() {
+            const spacing = NOTE_WIDTH + NOTE_SPACING;
+            if (maxNotesPerSecond > 0) {
+                noteSpeed = Math.max(BASE_NOTE_SPEED, spacing * maxNotesPerSecond);
+            } else {
+                noteSpeed = BASE_NOTE_SPEED;
+            }
         }
 
         // Key binding click handlers
@@ -2286,22 +2302,39 @@
             gameState.totalNotes++;
         }
 
-        function canSpawnNote() {
-            const now = performance.now();
+        function getSpawnSpacingInterval() {
+            return ((NOTE_WIDTH + NOTE_SPACING) / noteSpeed) * 1000;
+        }
+
+        function canSpawnNote(now = performance.now()) {
+            const spacingInterval = getSpawnSpacingInterval();
             while (noteSpawnTimestamps.length && now - noteSpawnTimestamps[0] > 1000) {
                 noteSpawnTimestamps.shift();
             }
-            return noteSpawnTimestamps.length < maxNotesPerSecond;
+            if (maxNotesPerSecond > 0 && noteSpawnTimestamps.length >= maxNotesPerSecond) {
+                return false;
+            }
+            if (now - lastNoteSpawnTime < spacingInterval) {
+                return false;
+            }
+            return true;
         }
 
-        function registerNoteSpawn() {
-            noteSpawnTimestamps.push(performance.now());
+        function registerNoteSpawn(now = performance.now()) {
+            noteSpawnTimestamps.push(now);
+            lastNoteSpawnTime = now;
         }
 
-        function spawnNoteIfAllowed(force = false) {
-            if (force || canSpawnNote()) {
+        function shouldForceSpawn(now = performance.now()) {
+            if (minNotesPerSecond <= 0) return false;
+            const maxGap = 1000 / minNotesPerSecond;
+            return (now - lastNoteSpawnTime) >= maxGap;
+        }
+
+        function spawnNoteIfAllowed(now = performance.now()) {
+            if (canSpawnNote(now)) {
                 createBeatNote();
-                registerNoteSpawn();
+                registerNoteSpawn(now);
                 return true;
             }
             return false;
@@ -2361,7 +2394,7 @@
 
         // Update beat notes positions
         function updateBeatNotes(deltaTime) {
-            const speed = 300;
+            const speed = noteSpeed;
             const hitZone = 300;
             const okWindow = 120;
 
@@ -2765,27 +2798,27 @@
         let lastNoteSpawn = 0;
         function spawnBeatNotes(time) {
             const spawnInterval = 60000 / gameState.bpm / 2;
-            const minInterval = minNotesPerSecond > 0 ? 1000 / minNotesPerSecond : 0;
+            const shouldForce = shouldForceSpawn(time);
 
-            if (time - lastNoteSpawn > spawnInterval && time - lastNoteSpawn > minInterval) {
-                if (Math.random() > 0.25) {
-                    spawnNoteIfAllowed();
+            if (time - lastNoteSpawn > spawnInterval || shouldForce) {
+                const shouldSpawn = shouldForce || Math.random() > 0.25;
+                if (shouldSpawn && spawnNoteIfAllowed(time)) {
+                    lastNoteSpawn = time;
                 }
-                lastNoteSpawn = time;
             }
         }
 
         let lastNoteSpawnAudio = 0;
         function spawnBeatNotesFromTrack(currentMs, force = false) {
             const baseInterval = Math.max(180, Math.min(500, gameState.beatInterval / 2));
-            const minInterval = minNotesPerSecond > 0 ? 1000 / minNotesPerSecond : 0;
-            const shouldSpawn = (currentMs - lastNoteSpawnAudio) > Math.max(baseInterval, minInterval);
+            const shouldForce = shouldForceSpawn(currentMs);
+            const shouldSpawn = (currentMs - lastNoteSpawnAudio) > baseInterval;
 
-            if (force || shouldSpawn) {
-                if (force || Math.random() > 0.15) {
-                    spawnNoteIfAllowed();
+            if (force || shouldForce || shouldSpawn) {
+                const shouldCreate = force || shouldForce || Math.random() > 0.15;
+                if (shouldCreate && spawnNoteIfAllowed(currentMs)) {
+                    lastNoteSpawnAudio = currentMs;
                 }
-                lastNoteSpawnAudio = currentMs;
             }
         }
 
@@ -2864,6 +2897,7 @@
             lastNoteSpawn = 0;
             lastNoteSpawnAudio = 0;
             noteSpawnTimestamps.length = 0;
+            lastNoteSpawnTime = 0;
             beatDetector.energyAvg = 0;
             beatDetector.energyHistory = [];
             beatDetector.lastBeatTime = 0;
