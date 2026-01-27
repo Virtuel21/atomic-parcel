@@ -1132,6 +1132,7 @@
 
         const BASE_NOTE_SPEED = 300;
         const NOTE_WIDTH = 60;
+        const FRAGILE_NOTE_WIDTH = 140;
         const NOTE_SPACING = 20;
         let noteSpeed = BASE_NOTE_SPEED;
 
@@ -2570,12 +2571,22 @@
         }
 
         // Create a beat note on the rhythm bar
-        function createBeatNote() {
+        function getNoteWidth(type) {
+            if (type === 'fragile') {
+                return FRAGILE_NOTE_WIDTH;
+            }
+            return NOTE_WIDTH;
+        }
+
+        function pickNoteType() {
             const fragileChance = 0.12;
             const types = ['cube', 'sphere', 'pizza'];
-            const type = Math.random() < fragileChance
+            return Math.random() < fragileChance
                 ? 'fragile'
                 : types[Math.floor(Math.random() * types.length)];
+        }
+
+        function createBeatNote(type) {
 
             const note = document.createElement('div');
             note.className = `beat-note ${type}`;
@@ -2607,12 +2618,15 @@
             gameState.totalNotes++;
         }
 
-        function getSpawnSpacingInterval() {
-            return ((NOTE_WIDTH + NOTE_SPACING) / noteSpeed) * 1000;
+        let lastNoteSpawnWidth = NOTE_WIDTH;
+
+        function getSpawnSpacingInterval(nextNoteWidth) {
+            const requiredSpacing = (lastNoteSpawnWidth / 2) + (nextNoteWidth / 2) + NOTE_SPACING;
+            return (requiredSpacing / noteSpeed) * 1000;
         }
 
-        function canSpawnNote(now = performance.now()) {
-            const spacingInterval = getSpawnSpacingInterval();
+        function canSpawnNote(now = performance.now(), nextNoteWidth = NOTE_WIDTH) {
+            const spacingInterval = getSpawnSpacingInterval(nextNoteWidth);
             while (noteSpawnTimestamps.length && now - noteSpawnTimestamps[0] > 1000) {
                 noteSpawnTimestamps.shift();
             }
@@ -2625,9 +2639,10 @@
             return true;
         }
 
-        function registerNoteSpawn(now = performance.now()) {
+        function registerNoteSpawn(now = performance.now(), noteWidth = NOTE_WIDTH) {
             noteSpawnTimestamps.push(now);
             lastNoteSpawnTime = now;
+            lastNoteSpawnWidth = noteWidth;
         }
 
         function shouldForceSpawn(now = performance.now()) {
@@ -2637,9 +2652,11 @@
         }
 
         function spawnNoteIfAllowed(now = performance.now()) {
-            if (canSpawnNote(now)) {
-                createBeatNote();
-                registerNoteSpawn(now);
+            const nextType = pickNoteType();
+            const nextWidth = getNoteWidth(nextType);
+            if (canSpawnNote(now, nextWidth)) {
+                createBeatNote(nextType);
+                registerNoteSpawn(now, nextWidth);
                 return true;
             }
             return false;
@@ -3405,6 +3422,7 @@
             lastNoteSpawnAudio = 0;
             noteSpawnTimestamps.length = 0;
             lastNoteSpawnTime = 0;
+            lastNoteSpawnWidth = NOTE_WIDTH;
             beatDetector.energyAvg = 0;
             beatDetector.energyHistory = [];
             beatDetector.lastBeatTime = 0;
