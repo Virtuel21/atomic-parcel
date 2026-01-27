@@ -986,6 +986,7 @@
                 <p><strong>Visez avec la souris</strong> - Plus vous visez haut, plus vous lancez fort!</p>
                 <p><strong>Timing:</strong> Appuyez quand la note atteint la ligne centrale</p>
                 <p><strong>Combo:</strong> Enchainez les hits pour augmenter votre puissance!</p>
+                <p><strong>Erreur:</strong> Une note ratée ou une mauvaise touche fait perdre des points. À 0 points, c'est terminé.</p>
                 <p><strong>Ultime:</strong> 10 notes réussies = mode automatique 10 sec!</p>
                 <p><strong>Fragile:</strong> Appuyez sur <span class="key-hint">A</span> + <span class="key-hint">P</span> ensemble pour lancer le colis FRAGILE.</p>
                 <p><strong>Express:</strong> Appuyez sur <span class="key-hint">A</span> + <span class="key-hint"><span class="spacebar-icon"></span></span> pour expédier un colis express.</p>
@@ -1242,6 +1243,7 @@
         const FRAGILE_MULTIPLIER = 3;
         const FRAGILE_MULTIPLIER_DURATION = 8000;
         const COMBO_NOTE_GAP = 240;
+        const MISS_SCORE_PENALTY = 50;
         const TRUCK_DIMENSIONS = {
             width: 2.4,
             height: 2.8,
@@ -2934,6 +2936,18 @@
             setTimeout(() => feedback.remove(), 1000);
         }
 
+        function applyMissPenalty({ label = 'RATE!', x = window.innerWidth / 2, y = window.innerHeight - 250, playSound = false } = {}) {
+            gameState.score = Math.max(0, gameState.score - MISS_SCORE_PENALTY);
+            updateScoreDisplay();
+            showFeedback(`${label} -${MISS_SCORE_PENALTY}`, 'miss', x, y);
+            if (playSound) {
+                playBeatSound(100, 'square', 0.1);
+            }
+            if (gameState.score === 0) {
+                endGame('Plus de points : la tournée est terminée.');
+            }
+        }
+
         // Create a beat note on the rhythm bar
         function getNoteWidth(type) {
             if (type === 'fragile') {
@@ -3151,7 +3165,7 @@
                     gameState.comboPower = 1;
                     updateComboDisplay();
                     updatePerfectStreak();
-                    showFeedback('RATE!', 'miss', window.innerWidth / 2, window.innerHeight - 250);
+                    applyMissPenalty();
                 }
             }
         }
@@ -3697,8 +3711,7 @@
                     updateComboDisplay();
                     updatePerfectStreak();
                     updateUltimateBar();
-                    showFeedback('RATE!', 'miss', window.innerWidth / 2, window.innerHeight - 250);
-                    playBeatSound(100, 'square', 0.1);
+                    applyMissPenalty({ playSound: true });
                 }
             }
         }
