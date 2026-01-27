@@ -1914,6 +1914,274 @@
             updateAnalysisMessage(`Analyse terminée : ${notes.length} notes jouables.`);
         }
 
+        function updateAnalysisMessage(message, isError = false) {
+            elements.analysisMessage.textContent = message;
+            elements.analysisMessage.style.color = isError ? '#ff6b6b' : '#ddd';
+        }
+
+        function handleAnalysisUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!audioContext) {
+                initAudio();
+            }
+            elements.exportBtn.disabled = true;
+            elements.analysisBpm.textContent = '--';
+            elements.analysisNotes.textContent = '0';
+            elements.analysisOffset.textContent = '--';
+            updateAnalysisMessage('Chargement du fichier audio...');
+            const reader = new FileReader();
+            reader.onload = async () => {
+                try {
+                    const arrayBuffer = reader.result;
+                    analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                    analysisResults = {
+                        bpm: 0,
+                        offset: 0,
+                        notes: [],
+                        onsets: [],
+                        subdivision: 4
+                    };
+                    analysisBuffer.fileName = file.name;
+                    updateAnalysisMessage('Fichier prêt pour analyse.');
+                } catch (error) {
+                    updateAnalysisMessage('Impossible de décoder ce fichier audio.', true);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function applyHannWindow(buffer, offset, size) {
+            const windowed = new Float32Array(size);
+            for (let i = 0; i < size; i++) {
+                const sample = buffer[offset + i] || 0;
+                const multiplier = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (size - 1)));
+                windowed[i] = sample * multiplier;
+            }
+            return windowed;
+        }
+
+        function fft(real, imag) {
+            const n = real.length;
+            const logN = Math.log2(n);
+            for (let i = 0; i < n; i++) {
+                const j = reverseBits(i, logN);
+                if (j > i) {
+                    [real[i], real[j]] = [real[j], real[i]];
+                    [imag[i], imag[j]] = [imag[j], imag[i]];
+                }
+            }
+            for (let size = 2; size <= n; size *= 2) {
+                const halfSize = size / 2;
+                const tableStep = Math.PI * 2 / size;
+                for (let i = 0; i < n; i += size) {
+                    for (let j = 0; j < halfSize; j++) {
+                        const angle = tableStep * j;
+                        const wr = Math.cos(angle);
+                        const wi = -Math.sin(angle);
+                        const k = i + j;
+                        const l = k + halfSize;
+                        const tr = wr * real[l] - wi * imag[l];
+                        const ti = wr * imag[l] + wi * real[l];
+                        real[l] = real[k] - tr;
+                        imag[l] = imag[k] - ti;
+                        real[k] += tr;
+                        imag[k] += ti;
+                    }
+                }
+            }
+        }
+
+        function reverseBits(x, bits) {
+            let y = 0;
+            for (let i = 0; i < bits; i++) {
+                y = (y << 1) | (x & 1);
+                x >>= 1;
+            }
+            return y;
+        }
+
+        function detectOnsets(audioBuffer) {
+            const sampleRate = audioBuffer.sampleRate;
+            const channelData = audioBuffer.numberOfChannels === 1
+                ? audioBuffer.getChannelData(0)
+                : mixToMono(audioBuffer);
+            const fftSize = 2048;
+            const hopSize = 512;
+            const frameCount = Math.floor((channelData.length - fftSize) / hopSize);
+            const prevMag = new Float32Array(fftSize / 2);
+            const flux = [];
+
+            for (let frame = 0; frame < frameCount; frame++) {
+                const offset = frame * hopSize;
+                const windowed = applyHannWindow(channelData, offset, fftSize);
+                const real = Array.from(windowed);
+                const imag = new Array(fftSize).fill(0);
+                fft(real, imag);
+
+                let sum = 0;
+                for (let i = 0; i < fftSize / 2; i++) {
+                    const mag = Math.hypot(real[i], imag[i]);
+                    const diff = mag - prevMag[i];
+                    if (diff > 0) {
+                        sum += diff;
+                    }
+                    prevMag[i] = mag;
+                }
+                flux.push(sum);
+            }
+
+            const windowSize = 16;
+            const onsets = [];
+            for (let i = 1; i < flux.length - 1; i++) {
+                const start = Math.max(0, i - windowSize);
+                const end = Math.min(flux.length, i + windowSize);
+                let mean = 0;
+                for (let j = start; j < end; j++) {
+                    mean += flux[j];
+                }
+                mean /= (end - start);
+                const threshold = mean * 1.5;
+                if (flux[i] > threshold && flux[i] > flux[i - 1] && flux[i] > flux[i + 1]) {
+                    const time = (i * hopSize) / sampleRate;
+                    onsets.push(time);
+                }
+            }
+            return onsets;
+        }
+
+        function mixToMono(buffer) {
+            const length = buffer.length;
+            const data = new Float32Array(length);
+            for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+                const channel = buffer.getChannelData(ch);
+                for (let i = 0; i < length; i++) {
+                    data[i] += channel[i] / buffer.numberOfChannels;
+                }
+            }
+            return data;
+        }
+
+        function estimateBpm(onsets) {
+            if (onsets.length < 2) return 120;
+            const histogram = new Map();
+            for (let i = 1; i < onsets.length; i++) {
+                const interval = onsets[i] - onsets[i - 1];
+                if (interval <= 0.05) continue;
+                let bpm = 60 / interval;
+                while (bpm < 60) bpm *= 2;
+                while (bpm > 180) bpm /= 2;
+                const rounded = Math.round(bpm);
+                histogram.set(rounded, (histogram.get(rounded) || 0) + 1);
+            }
+            let bestBpm = 120;
+            let bestCount = 0;
+            histogram.forEach((count, bpm) => {
+                if (count > bestCount) {
+                    bestCount = count;
+                    bestBpm = bpm;
+                }
+            });
+            return bestBpm;
+        }
+
+        function quantizeOnsets(onsets, bpm, subdivision = 4) {
+            const beatInterval = 60 / bpm;
+            const gridInterval = beatInterval / subdivision;
+            const offset = onsets.length ? onsets[0] : 0;
+            const quantized = new Map();
+            onsets.forEach((time) => {
+                const q = Math.round((time - offset) / gridInterval) * gridInterval + offset;
+                if (q < 0) return;
+                const key = Math.round(q * 1000);
+                quantized.set(key, q);
+            });
+            const times = Array.from(quantized.values()).sort((a, b) => a - b);
+            return { times, offset, gridInterval };
+        }
+
+        function assignLanes(times, gridInterval) {
+            const lanes = ['cube', 'sphere', 'pizza'];
+            const lastLaneTime = {
+                cube: -Infinity,
+                sphere: -Infinity,
+                pizza: -Infinity
+            };
+            let laneIndex = 0;
+            const minLaneGap = gridInterval * 0.75;
+            const notes = [];
+
+            times.forEach((time) => {
+                let chosenLane = null;
+                for (let i = 0; i < lanes.length; i++) {
+                    const lane = lanes[(laneIndex + i) % lanes.length];
+                    if (time - lastLaneTime[lane] >= minLaneGap) {
+                        chosenLane = lane;
+                        laneIndex = (laneIndex + i + 1) % lanes.length;
+                        break;
+                    }
+                }
+                if (!chosenLane) {
+                    chosenLane = lanes[laneIndex % lanes.length];
+                    laneIndex = (laneIndex + 1) % lanes.length;
+                }
+                lastLaneTime[chosenLane] = time;
+                notes.push({
+                    time: Number(time.toFixed(3)),
+                    lane: chosenLane
+                });
+            });
+            return notes;
+        }
+
+        async function analyzeCurrentTrack() {
+            if (!analysisBuffer) {
+                updateAnalysisMessage('Importez une musique avant de lancer l\'analyse.', true);
+                return;
+            }
+            updateAnalysisMessage('Analyse en cours... cela peut prendre quelques secondes.');
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            const onsets = detectOnsets(analysisBuffer);
+            const bpm = estimateBpm(onsets);
+            const { times, offset, gridInterval } = quantizeOnsets(onsets, bpm, analysisResults.subdivision);
+            const notes = assignLanes(times, gridInterval);
+
+            analysisResults = {
+                bpm,
+                offset,
+                notes,
+                onsets,
+                subdivision: analysisResults.subdivision
+            };
+
+            elements.analysisBpm.textContent = bpm.toString();
+            elements.analysisNotes.textContent = notes.length.toString();
+            elements.analysisOffset.textContent = `${offset.toFixed(2)}s`;
+            elements.exportBtn.disabled = notes.length === 0;
+            updateAnalysisMessage(`Analyse terminée : ${notes.length} notes quantifiées.`);
+        }
+
+        function exportAnalysisJson() {
+            if (!analysisResults.notes.length) return;
+            const payload = {
+                title: analysisBuffer?.fileName || 'piste',
+                bpm: analysisResults.bpm,
+                offset: Number(analysisResults.offset.toFixed(3)),
+                subdivision: analysisResults.subdivision,
+                notes: analysisResults.notes
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${payload.title.replace(/\.[^/.]+$/, '') || 'map'}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
         function playUserTrack(reset = false) {
             if (!userTrack || !useUserTrack) return;
             if (reset) {
