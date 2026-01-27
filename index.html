@@ -57,6 +57,19 @@
             color: #00ff88;
         }
 
+        #fragile-multiplier {
+            margin-top: 6px;
+            font-size: 1.1rem;
+            color: #ff66cc;
+            text-shadow: 0 0 15px rgba(255, 102, 204, 0.8);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #fragile-multiplier.active {
+            opacity: 1;
+        }
+
         /* Combo flame effect */
         #combo-container {
             position: relative;
@@ -141,6 +154,48 @@
         .beat-note.pizza {
             background: linear-gradient(135deg, #d9a54a, #a07c2c);
             border: 3px solid #ffcc6b;
+        }
+
+        .beat-note.fragile {
+            width: 140px;
+            height: 60px;
+            background: transparent;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .fragile-gem {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #fff;
+            z-index: 2;
+        }
+
+        .fragile-gem.cube {
+            background: linear-gradient(135deg, #4a90d9, #2c5aa0);
+            border: 3px solid #6bb3ff;
+        }
+
+        .fragile-gem.sphere {
+            background: linear-gradient(135deg, #d94a4a, #a02c2c);
+            border: 3px solid #ff6b6b;
+        }
+
+        .fragile-link {
+            position: absolute;
+            width: 110px;
+            height: 6px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.4), rgba(255,255,255,0.9), rgba(255,255,255,0.4));
+            border-radius: 4px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
         }
 
         .beat-note.hit {
@@ -848,7 +903,8 @@
                 <p><strong>Visez avec la souris</strong> - Plus vous visez haut, plus vous lancez fort!</p>
                 <p><strong>Timing:</strong> Appuyez quand la note atteint la ligne centrale</p>
                 <p><strong>Combo:</strong> Enchainez les hits pour augmenter votre puissance!</p>
-                <p><strong>Ultime:</strong> 25 PARFAITS d'affilée = mode automatique 10 sec!</p>
+                <p><strong>Ultime:</strong> 10 notes réussies = mode automatique 10 sec!</p>
+                <p><strong>Fragile:</strong> Appuyez sur <span class="key-hint">A</span> + <span class="key-hint">P</span> ensemble pour lancer le colis FRAGILE.</p>
             </div>
 
             <div class="instructions">
@@ -949,6 +1005,7 @@
         <!-- HUD -->
         <div id="hud">
             <div id="score-display">0</div>
+            <div id="fragile-multiplier">FRAGILE x3</div>
         </div>
 
         <!-- Timer -->
@@ -1044,6 +1101,7 @@
             hitNotes: 0,
             perfectStreak: 0,
             ultimateCharge: 0,
+            ultimateChargePoints: 0,
             ultimateActive: false,
             ultimateTimer: 0,
             ultimatesUsed: 0,
@@ -1054,7 +1112,9 @@
             lastBeatTime: 0,
             mouseY: 0.5,
             power: 0.5,
-            comboPower: 1 // Multiplier for throw power based on combo
+            comboPower: 1, // Multiplier for throw power based on combo
+            fragileMultiplier: 1,
+            fragileTimer: 0
         };
 
         const difficultySettings = {
@@ -1080,6 +1140,10 @@
         const ULTIMATE_DURATION = 10000; // 10 seconds
         const PACKAGE_BREAK_COMBO_REQUIRED = 10;
         const DEFAULT_GAME_DURATION = 90000; // 90 seconds
+        const MAX_ACTIVE_PACKAGES = 50;
+        const PACKAGE_PURGE_COUNT = 10;
+        const FRAGILE_MULTIPLIER = 3;
+        const FRAGILE_MULTIPLIER_DURATION = 8000;
 
         // DOM elements
         const elements = {
@@ -1131,7 +1195,8 @@
             analysisBpm: document.getElementById('analysis-bpm'),
             analysisNotes: document.getElementById('analysis-notes'),
             analysisOffset: document.getElementById('analysis-offset'),
-            analysisMessage: document.getElementById('analysis-message')
+            analysisMessage: document.getElementById('analysis-message'),
+            fragileMultiplier: document.getElementById('fragile-multiplier')
         };
 
         // Three.js variables
@@ -1181,6 +1246,10 @@
 
         // Key binding listener
         let listeningForKey = null;
+
+        // Pressed keys state
+        const pressedKeys = {};
+        let lastFragileTrigger = 0;
 
         // Beat detection state
         const beatDetector = {
@@ -2169,6 +2238,29 @@
             }, gameState.beatInterval / 2);
         }
 
+        let fragileLabelTexture = null;
+
+        function getFragileLabelTexture() {
+            if (fragileLabelTexture) return fragileLabelTexture;
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f7e6d0';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#cc0000';
+            ctx.lineWidth = 10;
+            ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+            ctx.fillStyle = '#cc0000';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('FRAGILE', canvas.width / 2, canvas.height / 2);
+            fragileLabelTexture = new THREE.CanvasTexture(canvas);
+            fragileLabelTexture.needsUpdate = true;
+            return fragileLabelTexture;
+        }
+
         // Create a package mesh
         function createPackageMesh(type) {
             let geometry, material;
@@ -2240,6 +2332,35 @@
                     top.position.y = 0.08 * scale;
                     group.add(top);
                     break;
+
+                case 'fragile':
+                    geometry = new THREE.BoxGeometry(0.9 * scale, 0.6 * scale, 0.9 * scale);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0xf7e6d0,
+                        roughness: 0.6,
+                        metalness: 0.1
+                    });
+                    const fragileBox = new THREE.Mesh(geometry, material);
+                    fragileBox.castShadow = true;
+                    group.add(fragileBox);
+
+                    const labelTexture = getFragileLabelTexture();
+                    const labelMaterial = new THREE.MeshBasicMaterial({
+                        map: labelTexture,
+                        transparent: true
+                    });
+
+                    const labelGeometry = new THREE.PlaneGeometry(0.8 * scale, 0.4 * scale);
+                    const topLabel = new THREE.Mesh(labelGeometry, labelMaterial);
+                    topLabel.rotation.x = -Math.PI / 2;
+                    topLabel.position.y = 0.31 * scale;
+                    group.add(topLabel);
+
+                    const sideLabel = new THREE.Mesh(labelGeometry, labelMaterial);
+                    sideLabel.position.z = 0.46 * scale;
+                    sideLabel.position.y = 0.05 * scale;
+                    group.add(sideLabel);
+                    break;
             }
 
             // Add glow effect for high combo
@@ -2269,6 +2390,10 @@
                 case 'pizza':
                     shape = new CANNON.Box(new CANNON.Vec3(0.35 * scale, 0.075 * scale, 0.35 * scale));
                     mass = 1;
+                    break;
+                case 'fragile':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.45 * scale, 0.3 * scale, 0.45 * scale));
+                    mass = 2.5;
                     break;
             }
 
@@ -2346,6 +2471,7 @@
                 lifetime: 0,
                 breakTime: 0
             });
+            enforcePackageLimit();
 
             // Play throw sound - more intense with combo
             const soundFreq = 150 + power * 100 + comboPower * 50;
@@ -2412,7 +2538,7 @@
 
             // Update score - more points with combo
             gameState.brokenPackages++;
-            const breakPoints = 100 * gameState.multiplier * gameState.comboPower;
+            const breakPoints = 100 * getEffectiveScoreMultiplier() * gameState.comboPower;
             gameState.score += breakPoints;
             elements.brokenValue.textContent = gameState.brokenPackages;
             updateScoreDisplay();
@@ -2445,8 +2571,11 @@
 
         // Create a beat note on the rhythm bar
         function createBeatNote() {
+            const fragileChance = 0.12;
             const types = ['cube', 'sphere', 'pizza'];
-            const type = types[Math.floor(Math.random() * types.length)];
+            const type = Math.random() < fragileChance
+                ? 'fragile'
+                : types[Math.floor(Math.random() * types.length)];
 
             const note = document.createElement('div');
             note.className = `beat-note ${type}`;
@@ -2454,8 +2583,18 @@
             note.dataset.type = type;
             note.style.right = '-70px';
 
-            let keyText = getKeyDisplayName(keyBindings[type]);
-            note.textContent = keyText;
+            if (type === 'fragile') {
+                const cubeKey = getKeyDisplayName(keyBindings.cube);
+                const sphereKey = getKeyDisplayName(keyBindings.sphere);
+                note.innerHTML = `
+                    <span class="fragile-link"></span>
+                    <span class="fragile-gem cube">${cubeKey}</span>
+                    <span class="fragile-gem sphere">${sphereKey}</span>
+                `;
+            } else {
+                let keyText = getKeyDisplayName(keyBindings[type]);
+                note.textContent = keyText;
+            }
 
             elements.rhythmBar.appendChild(note);
             beatNotes.push({
@@ -2611,13 +2750,17 @@
             gameState.multiplier = Math.min(8, 1 + Math.floor(gameState.combo / 5));
             gameState.comboPower = Math.min(4, 1 + Math.floor(gameState.combo / 10));
 
-            const points = 50 * gameState.multiplier;
+            const points = 50 * getEffectiveScoreMultiplier();
             gameState.score += points;
             updateScoreDisplay();
             updateComboDisplay();
+            addUltimateCharge(1);
 
             showFeedback('AUTO!', 'ultimate', window.innerWidth / 2, window.innerHeight - 250);
             launchPackage(note.type);
+            if (note.type === 'fragile') {
+                triggerFragileBonus();
+            }
             playBeatSound(600, 'sine', 0.1);
 
             setTimeout(() => {
@@ -2625,6 +2768,99 @@
                 const idx = beatNotes.indexOf(note);
                 if (idx > -1) beatNotes.splice(idx, 1);
             }, 300);
+        }
+
+        function checkFragileHit() {
+            const now = performance.now();
+            if (now - lastFragileTrigger < 150) {
+                return false;
+            }
+            lastFragileTrigger = now;
+
+            const hitZone = 300;
+            const hitWindow = 50;
+            const goodWindow = 80;
+            const okWindow = 110;
+
+            for (let i = 0; i < beatNotes.length; i++) {
+                const note = beatNotes[i];
+                if (note.hit || note.type !== 'fragile') continue;
+
+                const distance = Math.abs(note.position - hitZone);
+
+                if (distance < okWindow) {
+                    note.hit = true;
+                    note.element.classList.add('hit');
+                    gameState.hitNotes++;
+
+                    let points = 0;
+                    let feedback = '';
+                    let feedbackType = '';
+                    let isPerfect = false;
+
+                    if (distance < hitWindow) {
+                        points = 70;
+                        feedback = 'FRAGILE PARFAIT!';
+                        feedbackType = 'perfect';
+                        isPerfect = true;
+                        playBeatSound(650, 'sine', 0.12);
+                    } else if (distance < goodWindow) {
+                        points = 40;
+                        feedback = 'FRAGILE!';
+                        feedbackType = 'good';
+                        playBeatSound(450, 'sine', 0.12);
+                    } else {
+                        points = 20;
+                        feedback = 'FRAGILE OK';
+                        feedbackType = 'ok';
+                        playBeatSound(320, 'sine', 0.12);
+                    }
+
+                    gameState.combo++;
+                    if (gameState.combo > gameState.maxCombo) {
+                        gameState.maxCombo = gameState.combo;
+                    }
+                    gameState.multiplier = Math.min(8, 1 + Math.floor(gameState.combo / 5));
+                    gameState.comboPower = Math.min(4, 1 + Math.floor(gameState.combo / 10));
+
+                    if (isPerfect) {
+                        gameState.perfectStreak++;
+                    } else {
+                        gameState.perfectStreak = 0;
+                    }
+                    updatePerfectStreak();
+
+                    const totalPoints = points * getEffectiveScoreMultiplier();
+                    gameState.score += totalPoints;
+                    updateScoreDisplay();
+                    updateComboDisplay();
+                    addUltimateCharge(1);
+
+                    showFeedback(`${feedback} +${totalPoints}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
+
+                    triggerFragileBonus();
+                    launchPackage('fragile');
+
+                    setTimeout(() => {
+                        note.element.remove();
+                        const idx = beatNotes.indexOf(note);
+                        if (idx > -1) beatNotes.splice(idx, 1);
+                    }, 300);
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function hasFragileNoteInWindow() {
+            const hitZone = 300;
+            const okWindow = 110;
+            return beatNotes.some(note => {
+                if (note.hit || note.type !== 'fragile') return false;
+                return Math.abs(note.position - hitZone) < okWindow;
+            });
         }
 
         // Check if a key press hits a note
@@ -2683,27 +2919,20 @@
                     // Perfect streak for ultimate
                     if (isPerfect) {
                         gameState.perfectStreak++;
-                        if (gameState.perfectStreak >= ULTIMATE_CHARGE_REQUIRED && gameState.ultimateCharge < 100) {
-                            gameState.ultimateCharge = 100;
-                        } else if (gameState.ultimateCharge < 100) {
-                            gameState.ultimateCharge = Math.min(100, (gameState.perfectStreak / ULTIMATE_CHARGE_REQUIRED) * 100);
-                        }
                     } else {
                         gameState.perfectStreak = 0;
-                        if (!gameState.ultimateActive) {
-                            gameState.ultimateCharge = 0;
-                        }
                     }
                     updatePerfectStreak();
-                    updateUltimateBar();
 
                     // Add score
-                    gameState.score += points * gameState.multiplier;
+                    const totalPoints = points * getEffectiveScoreMultiplier();
+                    gameState.score += totalPoints;
                     updateScoreDisplay();
                     updateComboDisplay();
+                    addUltimateCharge(1);
 
                     // Show feedback
-                    showFeedback(feedback + ` +${points * gameState.multiplier}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
+                    showFeedback(feedback + ` +${totalPoints}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
 
                     // Launch the package
                     launchPackage(type);
@@ -2775,6 +3004,79 @@
             }
         }
 
+        function updateFragileMultiplierDisplay() {
+            if (gameState.fragileMultiplier > 1) {
+                elements.fragileMultiplier.classList.add('active');
+                elements.fragileMultiplier.textContent = `FRAGILE x${gameState.fragileMultiplier}`;
+            } else {
+                elements.fragileMultiplier.classList.remove('active');
+            }
+        }
+
+        function getEffectiveScoreMultiplier() {
+            return gameState.multiplier * gameState.fragileMultiplier;
+        }
+
+        function addUltimateCharge(points = 1) {
+            if (gameState.ultimateActive) return;
+            gameState.ultimateChargePoints = Math.min(
+                ULTIMATE_CHARGE_REQUIRED,
+                gameState.ultimateChargePoints + points
+            );
+            gameState.ultimateCharge = Math.min(
+                100,
+                (gameState.ultimateChargePoints / ULTIMATE_CHARGE_REQUIRED) * 100
+            );
+            updateUltimateBar();
+        }
+
+        function updateFragileMultiplier(deltaTime) {
+            if (gameState.fragileMultiplier <= 1) return;
+            gameState.fragileTimer -= deltaTime * 1000;
+            if (gameState.fragileTimer <= 0) {
+                gameState.fragileMultiplier = 1;
+                gameState.fragileTimer = 0;
+                updateFragileMultiplierDisplay();
+            }
+        }
+
+        function removePackageSilently(pkg) {
+            scene.remove(pkg.mesh);
+            if (pkg.body) {
+                world.removeBody(pkg.body);
+            }
+        }
+
+        function enforcePackageLimit() {
+            if (packages.length < MAX_ACTIVE_PACKAGES) return;
+            const removeCount = Math.min(PACKAGE_PURGE_COUNT, packages.length);
+            for (let i = 0; i < removeCount; i++) {
+                const pkg = packages.shift();
+                if (pkg) {
+                    removePackageSilently(pkg);
+                }
+            }
+        }
+
+        function explodeRandomPackages(count) {
+            let exploded = 0;
+            for (let i = 0; i < packages.length && exploded < count; i++) {
+                const pkg = packages[i];
+                if (!pkg.broken) {
+                    breakPackage(pkg);
+                    exploded++;
+                }
+            }
+        }
+
+        function triggerFragileBonus() {
+            gameState.fragileMultiplier = FRAGILE_MULTIPLIER;
+            gameState.fragileTimer = FRAGILE_MULTIPLIER_DURATION;
+            updateFragileMultiplierDisplay();
+            explodeRandomPackages(5);
+            showFeedback('FRAGILE x3 ! +5 EXPLOSIONS', 'ultimate', window.innerWidth / 2, window.innerHeight / 2 + 80);
+        }
+
         // Activate ultimate
         function activateUltimate() {
             if (gameState.ultimateCharge < 100 || gameState.ultimateActive) return;
@@ -2783,6 +3085,7 @@
             gameState.ultimateTimer = ULTIMATE_DURATION;
             gameState.ultimatesUsed++;
             gameState.ultimateCharge = 100;
+            gameState.ultimateChargePoints = 0;
 
             updateUltimateBar();
             showFeedback('ULTIMATE ACTIVE!', 'ultimate', window.innerWidth / 2, window.innerHeight / 2);
@@ -2800,6 +3103,7 @@
             if (gameState.ultimateTimer <= 0) {
                 gameState.ultimateActive = false;
                 gameState.ultimateCharge = 0;
+                gameState.ultimateChargePoints = 0;
                 gameState.perfectStreak = 0;
                 updateUltimateBar();
                 updatePerfectStreak();
@@ -2816,6 +3120,7 @@
             }
 
             const key = e.key.toLowerCase();
+            pressedKeys[key] = true;
 
             // Pause handling
             if (key === 'escape') {
@@ -2855,16 +3160,25 @@
                 keyElement.classList.add('active');
             }
 
+            const cubeKey = keyBindings.cube;
+            const sphereKey = keyBindings.sphere;
+            if ((key === cubeKey || key === sphereKey) && pressedKeys[cubeKey] && pressedKeys[sphereKey]) {
+                const hitFragile = checkFragileHit();
+                if (hitFragile) {
+                    return;
+                }
+            }
+
             if (type && !gameState.ultimateActive) {
                 if (!checkNoteHit(type)) {
+                    if ((type === 'cube' || type === 'sphere') && hasFragileNoteInWindow()) {
+                        return;
+                    }
                     // Wrong timing - penalty
                     gameState.combo = 0;
                     gameState.perfectStreak = 0;
                     gameState.multiplier = 1;
                     gameState.comboPower = 1;
-                    if (!gameState.ultimateActive) {
-                        gameState.ultimateCharge = 0;
-                    }
                     updateComboDisplay();
                     updatePerfectStreak();
                     updateUltimateBar();
@@ -2876,6 +3190,7 @@
 
         function handleKeyUp(e) {
             const key = e.key.toLowerCase();
+            pressedKeys[key] = false;
 
             if (key === keyBindings.cube) {
                 elements.keyA.classList.remove('active');
@@ -3047,6 +3362,9 @@
             // Update ultimate
             updateUltimate(deltaTime);
 
+            // Update fragile multiplier
+            updateFragileMultiplier(deltaTime);
+
             // Update physics
             updatePhysics(deltaTime);
 
@@ -3073,9 +3391,12 @@
             gameState.hitNotes = 0;
             gameState.perfectStreak = 0;
             gameState.ultimateCharge = 0;
+            gameState.ultimateChargePoints = 0;
             gameState.ultimateActive = false;
             gameState.ultimateTimer = 0;
             gameState.ultimatesUsed = 0;
+            gameState.fragileMultiplier = 1;
+            gameState.fragileTimer = 0;
             gameState.isPlaying = true;
             gameState.isPaused = false;
             gameTime = 0;
@@ -3107,6 +3428,7 @@
             updateComboDisplay();
             updatePerfectStreak();
             updateUltimateBar();
+            updateFragileMultiplierDisplay();
             elements.brokenValue.textContent = '0';
 
             // Hide screens
@@ -3137,6 +3459,9 @@
         function endGame() {
             gameState.isPlaying = false;
             pauseUserTrack();
+            gameState.fragileMultiplier = 1;
+            gameState.fragileTimer = 0;
+            updateFragileMultiplierDisplay();
 
             // Show game over screen
             elements.gameOverScreen.style.display = 'flex';
@@ -3170,6 +3495,7 @@
             updateKeyDisplays();
             updateDifficultySelection(currentDifficulty);
             updateGameDuration();
+            updateFragileMultiplierDisplay();
 
             // Event listeners
             elements.startBtn.addEventListener('click', startGame);
