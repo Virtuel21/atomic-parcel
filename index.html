@@ -298,10 +298,11 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-start;
             z-index: 1000;
             overflow-y: auto;
-            padding: 20px;
+            padding: 60px 20px 40px;
+            gap: 20px;
         }
 
         #start-screen h1 {
@@ -1209,25 +1210,6 @@
             ground.receiveShadow = true;
             scene.add(ground);
 
-            // Loading dock platform
-            const dockGeometry = new THREE.BoxGeometry(8, 0.5, 6);
-            const dockMaterial = new THREE.MeshStandardMaterial({
-                color: 0x666677,
-                roughness: 0.8
-            });
-            const dock = new THREE.Mesh(dockGeometry, dockMaterial);
-            dock.position.set(0, 0.25, 7);
-            dock.receiveShadow = true;
-            dock.castShadow = true;
-            scene.add(dock);
-
-            // Yellow safety stripes on dock edge
-            const stripeGeometry = new THREE.BoxGeometry(8, 0.52, 0.3);
-            const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-            const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
-            stripe.position.set(0, 0.26, 4.15);
-            scene.add(stripe);
-
             // Warehouse back wall
             const wallGeometry = new THREE.BoxGeometry(20, 8, 0.5);
             const wallMaterial = new THREE.MeshStandardMaterial({
@@ -1252,61 +1234,6 @@
             rightWall.receiveShadow = true;
             scene.add(rightWall);
 
-            // Palettes on the dock
-            for (let i = 0; i < 3; i++) {
-                const palette = createPalette();
-                palette.position.set(-3 + i * 3, 0.5, 8);
-                palette.rotation.y = Math.random() * 0.2 - 0.1;
-                scene.add(palette);
-            }
-
-            // Warning signs
-            const signGeometry = new THREE.PlaneGeometry(1.5, 1);
-            const signMaterial = new THREE.MeshBasicMaterial({
-                color: 0xff6600,
-                side: THREE.DoubleSide
-            });
-            const sign1 = new THREE.Mesh(signGeometry, signMaterial);
-            sign1.position.set(-4, 3, 11.7);
-            scene.add(sign1);
-
-            const sign2 = new THREE.Mesh(signGeometry, signMaterial);
-            sign2.position.set(4, 3, 11.7);
-            scene.add(sign2);
-        }
-
-        // Create a palette
-        function createPalette() {
-            const group = new THREE.Group();
-            const woodMaterial = new THREE.MeshStandardMaterial({
-                color: 0x8B7355,
-                roughness: 0.9
-            });
-
-            // Top planks
-            for (let i = 0; i < 5; i++) {
-                const plank = new THREE.Mesh(
-                    new THREE.BoxGeometry(1.2, 0.05, 0.15),
-                    woodMaterial
-                );
-                plank.position.set(0, 0.15, -0.4 + i * 0.2);
-                plank.castShadow = true;
-                group.add(plank);
-            }
-
-            // Support blocks
-            for (let x = -0.4; x <= 0.4; x += 0.4) {
-                for (let z = -0.3; z <= 0.3; z += 0.3) {
-                    const block = new THREE.Mesh(
-                        new THREE.BoxGeometry(0.1, 0.12, 0.1),
-                        woodMaterial
-                    );
-                    block.position.set(x, 0.06, z);
-                    group.add(block);
-                }
-            }
-
-            return group;
         }
 
         // Create the truck/trailer - realistic semi-trailer interior
@@ -1511,224 +1438,6 @@
             bottomFrame.position.set(0, 0.8, 2.1);
             truck.add(bottomFrame);
 
-            // Dock bumpers for loading bay
-            const bumperGeometry = new THREE.BoxGeometry(0.25, 0.8, 0.2);
-            const bumperMaterial = new THREE.MeshStandardMaterial({
-                color: 0x222222,
-                roughness: 0.9
-            });
-            const bumperLeft = new THREE.Mesh(bumperGeometry, bumperMaterial);
-            bumperLeft.position.set(-trailerWidth / 2 - 0.25, 1.2, 2.05);
-            truck.add(bumperLeft);
-
-            const bumperRight = bumperLeft.clone();
-            bumperRight.position.x = trailerWidth / 2 + 0.25;
-            truck.add(bumperRight);
-
-            // Dock plate at the entrance
-            const plateGeometry = new THREE.BoxGeometry(trailerWidth - 0.2, 0.05, 0.6);
-            const plateMaterial = new THREE.MeshStandardMaterial({
-                color: 0x666677,
-                roughness: 0.4,
-                metalness: 0.6
-            });
-            const dockPlate = new THREE.Mesh(plateGeometry, plateMaterial);
-            dockPlate.position.set(0, 0.83, 2.35);
-            dockPlate.rotation.x = -0.12;
-            truck.add(dockPlate);
-
-            // Wheels
-            const wheelGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 24);
-            const wheelMaterial = new THREE.MeshStandardMaterial({
-                color: 0x222222,
-                roughness: 0.8
-            });
-
-            const wheelPositions = [
-                [-1.1, 0.45, -1], [1.1, 0.45, -1],
-                [-1.1, 0.45, -2], [1.1, 0.45, -2],
-                [-1.1, 0.45, -6], [1.1, 0.45, -6],
-                [-1.1, 0.45, -7], [1.1, 0.45, -7]
-            ];
-
-            wheelPositions.forEach(pos => {
-                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-                wheel.rotation.z = Math.PI / 2;
-                wheel.position.set(...pos);
-                wheel.castShadow = true;
-                truck.add(wheel);
-
-                // Rim
-                const rimGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.36, 12);
-                const rimMaterial = new THREE.MeshStandardMaterial({
-                    color: 0x888888,
-                    metalness: 0.8,
-                    roughness: 0.3
-                });
-                const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-                rim.rotation.z = Math.PI / 2;
-                rim.position.set(...pos);
-                truck.add(rim);
-            });
-
-            // Mud flaps
-            const flapGeometry = new THREE.BoxGeometry(0.02, 0.4, 0.3);
-            const flapMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
-
-            [[-1.3, 0.3, -0.5], [1.3, 0.3, -0.5], [-1.3, 0.3, -5.5], [1.3, 0.3, -5.5]].forEach(pos => {
-                const flap = new THREE.Mesh(flapGeometry, flapMaterial);
-                flap.position.set(...pos);
-                truck.add(flap);
-            });
-
-            // Company branding on side
-            const brandGeometry = new THREE.PlaneGeometry(4, 1.2);
-            const brandMaterial = new THREE.MeshBasicMaterial({
-                color: 0xff6633,
-                side: THREE.DoubleSide
-            });
-
-            const brandLeft = new THREE.Mesh(brandGeometry, brandMaterial);
-            brandLeft.position.set(-trailerWidth / 2 - 0.12, 2.5, -3);
-            brandLeft.rotation.y = Math.PI / 2;
-            truck.add(brandLeft);
-
-            const brandRight = new THREE.Mesh(brandGeometry, brandMaterial);
-            brandRight.position.set(trailerWidth / 2 + 0.12, 2.5, -3);
-            brandRight.rotation.y = -Math.PI / 2;
-            truck.add(brandRight);
-
-            // === Tractor cab for a real semi look ===
-            const cabGroup = new THREE.Group();
-            const cabMaterial = new THREE.MeshStandardMaterial({
-                color: 0xff5a36,
-                roughness: 0.4,
-                metalness: 0.4
-            });
-            const cabAccent = new THREE.MeshStandardMaterial({
-                color: 0x2d2d3a,
-                roughness: 0.6,
-                metalness: 0.2
-            });
-            const glassMaterial = new THREE.MeshStandardMaterial({
-                color: 0x66aadd,
-                roughness: 0.05,
-                metalness: 0.1,
-                transparent: true,
-                opacity: 0.55
-            });
-            const chromeMaterial = new THREE.MeshStandardMaterial({
-                color: 0xdddddd,
-                roughness: 0.2,
-                metalness: 0.8
-            });
-
-            // Cab base
-            const cabBase = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.8, 2.6), cabAccent);
-            cabBase.position.set(0, 0.7, 3.8);
-            cabBase.castShadow = true;
-            cabGroup.add(cabBase);
-
-            // Cab main body
-            const cabBody = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.6, 1.8), cabMaterial);
-            cabBody.position.set(0, 1.8, 4.1);
-            cabBody.castShadow = true;
-            cabGroup.add(cabBody);
-
-            // Cab roof
-            const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.3, 1.6), cabMaterial);
-            cabRoof.position.set(0, 2.65, 4.1);
-            cabGroup.add(cabRoof);
-
-            // Windshield
-            const windshield = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.1), glassMaterial);
-            windshield.position.set(0, 2.1, 5.05);
-            windshield.rotation.x = -0.2;
-            cabGroup.add(windshield);
-
-            // Grill
-            const grill = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.7, 0.15), chromeMaterial);
-            grill.position.set(0, 1.3, 5.1);
-            cabGroup.add(grill);
-
-            // Bumper
-            const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.35, 0.2), cabAccent);
-            bumper.position.set(0, 0.6, 5.2);
-            cabGroup.add(bumper);
-
-            // Headlights
-            const headlightGeometry = new THREE.BoxGeometry(0.25, 0.2, 0.1);
-            const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffdd });
-            [-0.8, 0.8].forEach(x => {
-                const headlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
-                headlight.position.set(x, 0.95, 5.15);
-                cabGroup.add(headlight);
-            });
-
-            // Side mirrors
-            const mirrorArm = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 0.5), cabAccent);
-            mirrorArm.position.set(-1.2, 2.1, 4.7);
-            cabGroup.add(mirrorArm);
-            const mirrorArmR = mirrorArm.clone();
-            mirrorArmR.position.x = 1.2;
-            cabGroup.add(mirrorArmR);
-
-            const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 0.05), chromeMaterial);
-            mirror.position.set(-1.25, 2.15, 4.95);
-            cabGroup.add(mirror);
-            const mirrorR = mirror.clone();
-            mirrorR.position.x = 1.25;
-            cabGroup.add(mirrorR);
-
-            // Exhaust stacks
-            const exhaustGeometry = new THREE.CylinderGeometry(0.07, 0.07, 1.4, 12);
-            [-0.95, 0.95].forEach(x => {
-                const exhaust = new THREE.Mesh(exhaustGeometry, chromeMaterial);
-                exhaust.position.set(x, 2.3, 3.2);
-                cabGroup.add(exhaust);
-            });
-
-            // Fuel tanks
-            const tankGeometry = new THREE.CylinderGeometry(0.18, 0.18, 1.1, 16);
-            [-1.2, 1.2].forEach(x => {
-                const tank = new THREE.Mesh(tankGeometry, chromeMaterial);
-                tank.rotation.z = Math.PI / 2;
-                tank.position.set(x, 0.6, 3.2);
-                cabGroup.add(tank);
-            });
-
-            // Fifth wheel connector plate
-            const fifthWheel = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.15, 0.8), darkMetalMaterial);
-            fifthWheel.position.set(0, 1.05, 2.6);
-            cabGroup.add(fifthWheel);
-
-            // Cab wheels
-            const cabWheelPositions = [
-                [-1.05, 0.45, 4.7], [1.05, 0.45, 4.7],
-                [-1.05, 0.45, 3.3], [1.05, 0.45, 3.3]
-            ];
-            cabWheelPositions.forEach(pos => {
-                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-                wheel.rotation.z = Math.PI / 2;
-                wheel.position.set(...pos);
-                wheel.castShadow = true;
-                cabGroup.add(wheel);
-
-                const rimGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.36, 12);
-                const rimMaterial = new THREE.MeshStandardMaterial({
-                    color: 0x888888,
-                    metalness: 0.8,
-                    roughness: 0.3
-                });
-                const rim = new THREE.Mesh(rimGeometry, rimMaterial);
-                rim.rotation.z = Math.PI / 2;
-                rim.position.set(...pos);
-                cabGroup.add(rim);
-            });
-
-            cabGroup.position.set(0, 0, 0);
-            truck.add(cabGroup);
-
             scene.add(truck);
         }
 
@@ -1785,12 +1494,6 @@
             ceilingBody.position.set(0, trailerHeight + 0.85, -trailerLength / 2 + 2);
             world.addBody(ceilingBody);
 
-            // Dock platform
-            const dockShape = new CANNON.Box(new CANNON.Vec3(4, 0.25, 3));
-            const dockBody = new CANNON.Body({ mass: 0 });
-            dockBody.addShape(dockShape);
-            dockBody.position.set(0, 0.25, 7);
-            world.addBody(dockBody);
         }
 
         // Initialize audio
