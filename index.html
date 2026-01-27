@@ -1050,8 +1050,10 @@
         let noteSpeed = BASE_NOTE_SPEED;
 
         // Constants
-        const ULTIMATE_CHARGE_REQUIRED = 25;
+        const ULTIMATE_CHARGE_REQUIRED = 10;
         const ULTIMATE_DURATION = 10000; // 10 seconds
+        const PACKAGE_BREAK_COMBO_REQUIRED = 10;
+        const DEFAULT_GAME_DURATION = 90000; // 90 seconds
 
         // DOM elements
         const elements = {
@@ -1621,6 +1623,10 @@
                 userTrack.addEventListener('ended', () => {
                     useUserTrack = false;
                     updateTrackStatus('Terminée', false);
+                    if (gameState.isPlaying) {
+                        gameTime = gameDuration;
+                        endGame();
+                    }
                 });
             }
 
@@ -1643,6 +1649,7 @@
 
                 useUserTrack = true;
                 updateTrackStatus(file.name, true);
+                updateGameDuration();
             }, { once: true });
         }
 
@@ -2135,6 +2142,9 @@
             const breakThreshold = Math.max(4, 10 - gameState.comboPower * 2);
 
             body.addEventListener('collide', (e) => {
+                if (gameState.combo < PACKAGE_BREAK_COMBO_REQUIRED) {
+                    return;
+                }
                 const relVel = e.contact.getImpactVelocityAlongNormal();
                 if (Math.abs(relVel) > breakThreshold) {
                     const meshData = packages.find(p => p.body === body);
@@ -2183,7 +2193,8 @@
                 body: body,
                 type: type,
                 broken: false,
-                lifetime: 0
+                lifetime: 0,
+                breakTime: 0
             });
 
             // Play throw sound - more intense with combo
@@ -2195,6 +2206,7 @@
         function breakPackage(packageData) {
             if (packageData.broken) return;
             packageData.broken = true;
+            packageData.breakTime = packageData.lifetime;
 
             const pos = packageData.mesh.position.clone();
             const color = packageData.mesh.children[0].material.color.clone();
@@ -2243,6 +2255,10 @@
 
             // Hide original mesh
             packageData.mesh.visible = false;
+            if (packageData.body) {
+                world.removeBody(packageData.body);
+                packageData.body = null;
+            }
 
             // Update score - more points with combo
             gameState.brokenPackages++;
@@ -2756,14 +2772,21 @@
 
             for (let i = packages.length - 1; i >= 0; i--) {
                 const pkg = packages[i];
-                pkg.mesh.position.copy(pkg.body.position);
-                pkg.mesh.quaternion.copy(pkg.body.quaternion);
                 pkg.lifetime += deltaTime;
 
-                // Remove old packages
-                if (pkg.lifetime > 20) {
+                if (pkg.body) {
+                    pkg.mesh.position.copy(pkg.body.position);
+                    pkg.mesh.quaternion.copy(pkg.body.quaternion);
+                }
+
+                const outOfBounds = pkg.mesh.position.y < -5 || pkg.mesh.position.z > 25 || pkg.mesh.position.z < -70;
+
+                // Remove broken packages shortly after explosion or if they leave the truck area
+                if ((pkg.broken && (pkg.lifetime - pkg.breakTime) > 1.5) || outOfBounds) {
                     scene.remove(pkg.mesh);
-                    world.removeBody(pkg.body);
+                    if (pkg.body) {
+                        world.removeBody(pkg.body);
+                    }
                     packages.splice(i, 1);
                 }
             }
@@ -2792,6 +2815,18 @@
             const minutes = Math.floor(remaining / 60000);
             const seconds = Math.floor((remaining % 60000) / 1000);
             elements.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        function getGameDurationMs() {
+            if (useUserTrack && userTrack && Number.isFinite(userTrack.duration) && userTrack.duration > 0) {
+                return userTrack.duration * 1000;
+            }
+            return DEFAULT_GAME_DURATION;
+        }
+
+        function updateGameDuration() {
+            gameDuration = getGameDurationMs();
+            updateTimer();
         }
 
         // Spawn beat notes
@@ -2825,7 +2860,7 @@
         // Main game loop
         let lastTime = 0;
         let gameTime = 0;
-        const gameDuration = 90000; // 90 seconds
+        let gameDuration = DEFAULT_GAME_DURATION;
 
         function gameLoop(time) {
             if (!gameState.isPlaying) return;
@@ -2894,6 +2929,7 @@
             gameState.isPlaying = true;
             gameState.isPaused = false;
             gameTime = 0;
+            updateGameDuration();
             lastNoteSpawn = 0;
             lastNoteSpawnAudio = 0;
             noteSpawnTimestamps.length = 0;
@@ -2908,7 +2944,9 @@
             beatNotes = [];
             packages.forEach(p => {
                 scene.remove(p.mesh);
-                world.removeBody(p.body);
+                if (p.body) {
+                    world.removeBody(p.body);
+                }
             });
             packages = [];
             particles.forEach(p => scene.remove(p));
@@ -2981,6 +3019,7 @@
             setupDifficultyListeners();
             updateKeyDisplays();
             updateDifficultySelection(currentDifficulty);
+            updateGameDuration();
 
             // Event listeners
             elements.startBtn.addEventListener('click', startGame);
