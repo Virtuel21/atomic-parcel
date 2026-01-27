@@ -626,6 +626,28 @@
             cursor: not-allowed;
         }
 
+        .analysis-progress {
+            width: 100%;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .analysis-progress.active {
+            display: block;
+        }
+
+        .analysis-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff88, #4a90d9);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+            transition: width 0.2s ease;
+        }
+
         .analysis-status {
             font-size: 0.95rem;
             color: #ddd;
@@ -1020,6 +1042,9 @@
                     Décalage : <strong id="analysis-offset">--</strong>
                 </div>
                 <div class="analysis-status" id="analysis-message">Aucune analyse en cours.</div>
+                <div class="analysis-progress" id="analysis-progress">
+                    <div class="analysis-progress-fill" id="analysis-progress-fill"></div>
+                </div>
             </div>
 
             <div class="instructions">
@@ -1279,6 +1304,8 @@
             analysisNotes: document.getElementById('analysis-notes'),
             analysisOffset: document.getElementById('analysis-offset'),
             analysisMessage: document.getElementById('analysis-message'),
+            analysisProgress: document.getElementById('analysis-progress'),
+            analysisProgressFill: document.getElementById('analysis-progress-fill'),
             fragileMultiplier: document.getElementById('fragile-multiplier'),
             gameOverMessage: document.getElementById('game-over-message')
         };
@@ -1752,43 +1779,60 @@
             truck = new THREE.Group();
             scene.add(truck);
 
+            if (!THREE.GLTFLoader) {
+                console.warn('GLTFLoader missing, using procedural trailer.');
+                buildProceduralTrailer(truck);
+                return;
+            }
+
             const loader = new THREE.GLTFLoader();
             loader.load(
                 trailerModelUrl,
                 (gltf) => {
-                    const trailerModel = gltf.scene;
-                    trailerModel.traverse((child) => {
-                        if (child.isMesh) {
-                            child.castShadow = true;
-                            child.receiveShadow = true;
+                    try {
+                        const trailerModel = gltf.scene;
+                        trailerModel.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
+
+                        const boundingBox = new THREE.Box3().setFromObject(trailerModel);
+                        const size = new THREE.Vector3();
+                        boundingBox.getSize(size);
+
+                        if (!size.x || !size.y || !size.z) {
+                            console.warn('Trailer model has invalid bounds, using procedural trailer.');
+                            buildProceduralTrailer(truck);
+                            return;
                         }
-                    });
 
-                    const boundingBox = new THREE.Box3().setFromObject(trailerModel);
-                    const size = new THREE.Vector3();
-                    boundingBox.getSize(size);
+                        const targetSize = new THREE.Vector3(
+                            trailerDimensions.width,
+                            trailerDimensions.height,
+                            trailerDimensions.length
+                        );
+                        const scale = Math.min(
+                            targetSize.x / size.x,
+                            targetSize.y / size.y,
+                            targetSize.z / size.z
+                        );
+                        trailerModel.scale.setScalar(scale);
 
-                    const targetSize = new THREE.Vector3(
-                        trailerDimensions.width,
-                        trailerDimensions.height,
-                        trailerDimensions.length
-                    );
-                    const scale = Math.min(
-                        targetSize.x / size.x,
-                        targetSize.y / size.y,
-                        targetSize.z / size.z
-                    );
-                    trailerModel.scale.setScalar(scale);
+                        boundingBox.setFromObject(trailerModel);
+                        const center = new THREE.Vector3();
+                        boundingBox.getCenter(center);
+                        trailerModel.position.sub(center);
+                        trailerModel.position.y += trailerDimensions.height / 2 + 0.8;
+                        trailerModel.position.z += -trailerDimensions.length / 2 + 2;
 
-                    boundingBox.setFromObject(trailerModel);
-                    const center = new THREE.Vector3();
-                    boundingBox.getCenter(center);
-                    trailerModel.position.sub(center);
-                    trailerModel.position.y += trailerDimensions.height / 2 + 0.8;
-                    trailerModel.position.z += -trailerDimensions.length / 2 + 2;
-
-                    truck.add(trailerModel);
-                    addTrailerInteriorLights(truck);
+                        truck.add(trailerModel);
+                        addTrailerInteriorLights(truck);
+                    } catch (error) {
+                        console.warn('Failed to initialize trailer model, using procedural trailer.', error);
+                        buildProceduralTrailer(truck);
+                    }
                 },
                 undefined,
                 (error) => {
@@ -1959,10 +2003,22 @@
             elements.analysisMessage.style.color = isError ? '#ff6b6b' : '#ddd';
         }
 
+        function updateAnalysisProgress(percent) {
+            if (!elements.analysisProgress || !elements.analysisProgressFill) return;
+            const clamped = Math.max(0, Math.min(100, percent));
+            elements.analysisProgressFill.style.width = `${clamped}%`;
+        }
+
         function setAnalysisBusy(isBusy) {
             analysisInProgress = isBusy;
             elements.analyzeBtn.disabled = isBusy || !analysisBuffer;
             elements.exportBtn.disabled = isBusy || analysisResults.notes.length === 0;
+            if (elements.analysisProgress) {
+                elements.analysisProgress.classList.toggle('active', isBusy);
+                if (!isBusy) {
+                    updateAnalysisProgress(0);
+                }
+            }
         }
 
         async function loadAnalysisBuffer(file) {
@@ -1975,10 +2031,14 @@
             elements.analysisOffset.textContent = '--';
             updateAnalysisMessage('Chargement du fichier audio...');
             setAnalysisBusy(true);
+            updateAnalysisProgress(10);
 
             try {
+                await new Promise((resolve) => setTimeout(resolve, 0));
                 const arrayBuffer = await file.arrayBuffer();
+                updateAnalysisProgress(45);
                 analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                updateAnalysisProgress(80);
                 analysisResults = {
                     bpm: 0,
                     offset: 0,
@@ -1988,6 +2048,7 @@
                 };
                 analysisBuffer.fileName = file.name;
                 updateAnalysisMessage('Fichier prêt pour analyse.');
+                updateAnalysisProgress(100);
                 return true;
             } catch (error) {
                 analysisBuffer = null;
@@ -2012,6 +2073,7 @@
             elements.analysisOffset.textContent = '--';
             updateAnalysisMessage('Chargement du fichier audio...');
             setAnalysisBusy(true);
+            updateAnalysisProgress(10);
 
             try {
                 const response = await fetch(url);
@@ -2019,7 +2081,9 @@
                     throw new Error('Bad response');
                 }
                 const arrayBuffer = await response.arrayBuffer();
+                updateAnalysisProgress(45);
                 analysisBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                updateAnalysisProgress(80);
                 analysisResults = {
                     bpm: 0,
                     offset: 0,
@@ -2029,6 +2093,7 @@
                 };
                 analysisBuffer.fileName = name;
                 updateAnalysisMessage('Fichier prêt pour analyse.');
+                updateAnalysisProgress(100);
                 return true;
             } catch (error) {
                 analysisBuffer = null;
@@ -2272,12 +2337,16 @@
             }
             setAnalysisBusy(true);
             updateAnalysisMessage(auto ? 'Analyse automatique en cours... cela peut prendre quelques secondes.' : 'Analyse en cours... cela peut prendre quelques secondes.');
+            updateAnalysisProgress(5);
             await new Promise((resolve) => setTimeout(resolve, 50));
             try {
                 const onsets = detectOnsets(analysisBuffer);
+                updateAnalysisProgress(55);
                 const bpm = estimateBpm(onsets);
                 const { times, offset, gridInterval } = quantizeOnsets(onsets, bpm, analysisResults.subdivision);
+                updateAnalysisProgress(75);
                 const notes = assignLanes(times, gridInterval);
+                updateAnalysisProgress(90);
 
                 analysisResults = {
                     bpm,
@@ -2292,6 +2361,7 @@
                 elements.analysisOffset.textContent = `${offset.toFixed(2)}s`;
                 elements.exportBtn.disabled = notes.length === 0;
                 updateAnalysisMessage(`Analyse terminée : ${notes.length} notes quantifiées.`);
+                updateAnalysisProgress(100);
             } catch (error) {
                 updateAnalysisMessage('Analyse impossible. Réessayez avec un autre fichier.', true);
             } finally {
