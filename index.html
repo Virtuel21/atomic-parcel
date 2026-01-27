@@ -57,6 +57,35 @@
             color: #00ff88;
         }
 
+        /* Combo flame effect */
+        #combo-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        #combo-flame {
+            position: absolute;
+            top: -20px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            background: radial-gradient(ellipse at bottom, rgba(255, 100, 0, 0.5) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        #combo-container.on-fire #combo-flame {
+            opacity: 1;
+            animation: flameFlicker 0.2s infinite alternate;
+        }
+
+        @keyframes flameFlicker {
+            0% { transform: scaleY(1); }
+            100% { transform: scaleY(1.1); }
+        }
+
         /* Rhythm indicator */
         #rhythm-bar {
             position: absolute;
@@ -247,6 +276,12 @@
             font-size: 2.5rem;
         }
 
+        .feedback-text.ultimate {
+            color: #00ffff;
+            text-shadow: 0 0 40px #00ffff, 0 0 80px #00ffff;
+            font-size: 3rem;
+        }
+
         @keyframes feedbackFloat {
             0% { transform: translate(-50%, 0) scale(1); opacity: 1; }
             100% { transform: translate(-50%, -50px) scale(1.2); opacity: 0; }
@@ -265,6 +300,8 @@
             align-items: center;
             justify-content: center;
             z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
         }
 
         #start-screen h1 {
@@ -277,16 +314,17 @@
         #start-screen h2 {
             font-size: 1.5rem;
             color: #888;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             font-style: italic;
         }
 
         .instructions {
             background: rgba(255, 255, 255, 0.1);
-            padding: 30px;
+            padding: 25px;
             border-radius: 15px;
-            margin-bottom: 40px;
-            max-width: 500px;
+            margin-bottom: 20px;
+            max-width: 550px;
+            width: 100%;
         }
 
         .instructions h3 {
@@ -308,11 +346,65 @@
             color: #fff;
             font-weight: bold;
             margin: 0 3px;
+            min-width: 40px;
+            text-align: center;
         }
 
-        #start-btn {
-            padding: 20px 60px;
-            font-size: 1.5rem;
+        /* Key binding configuration */
+        .key-config {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+        }
+
+        .key-config label {
+            color: #ccc;
+            font-size: 1rem;
+        }
+
+        .key-config-btn {
+            padding: 8px 20px;
+            background: #444;
+            border: 2px solid #666;
+            border-radius: 5px;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            min-width: 80px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .key-config-btn:hover {
+            background: #555;
+            border-color: #888;
+        }
+
+        .key-config-btn.listening {
+            background: #ff6b35;
+            border-color: #ff6b35;
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+
+        .menu-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .menu-btn {
+            padding: 15px 40px;
+            font-size: 1.3rem;
             background: linear-gradient(135deg, #ff6b35, #ff3366);
             border: none;
             border-radius: 50px;
@@ -320,12 +412,41 @@
             cursor: pointer;
             font-weight: bold;
             transition: all 0.3s;
-            pointer-events: auto;
         }
 
-        #start-btn:hover {
+        .menu-btn:hover {
             transform: scale(1.1);
             box-shadow: 0 0 40px #ff6b35;
+        }
+
+        .menu-btn.secondary {
+            background: linear-gradient(135deg, #444, #333);
+        }
+
+        .menu-btn.secondary:hover {
+            box-shadow: 0 0 20px #888;
+        }
+
+        /* Pause screen */
+        #pause-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 26, 46, 0.9);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #pause-screen h1 {
+            font-size: 4rem;
+            color: #ffd700;
+            text-shadow: 0 0 30px #ffd700;
+            margin-bottom: 40px;
         }
 
         /* Game over screen */
@@ -360,6 +481,11 @@
             color: #888;
             font-size: 1.2rem;
             margin-bottom: 30px;
+            text-align: center;
+        }
+
+        #stats p {
+            margin: 5px 0;
         }
 
         /* Power meter */
@@ -395,6 +521,106 @@
             text-orientation: mixed;
         }
 
+        /* Ultimate bar */
+        #ultimate-container {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #ultimate-bar {
+            width: 30px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.7);
+            border-radius: 15px;
+            border: 2px solid #444;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #ultimate-fill {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(180deg, #00ffff, #0088ff, #0044aa);
+            transition: height 0.2s;
+        }
+
+        #ultimate-bar.ready {
+            border-color: #00ffff;
+            box-shadow: 0 0 20px #00ffff;
+            animation: ultReady 0.5s infinite alternate;
+        }
+
+        #ultimate-bar.active {
+            border-color: #ff00ff;
+            box-shadow: 0 0 30px #ff00ff;
+        }
+
+        @keyframes ultReady {
+            0% { box-shadow: 0 0 20px #00ffff; }
+            100% { box-shadow: 0 0 40px #00ffff; }
+        }
+
+        #ultimate-label {
+            color: #00ffff;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        #ultimate-key {
+            background: #00ffff;
+            color: #000;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #ultimate-key.visible {
+            opacity: 1;
+            animation: pulse 0.5s infinite alternate;
+        }
+
+        /* Combo meter */
+        #combo-meter {
+            position: absolute;
+            left: 20px;
+            top: 120px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 10px;
+            border: 2px solid #444;
+        }
+
+        #combo-meter.fire-1 { border-color: #ffaa00; }
+        #combo-meter.fire-2 { border-color: #ff6600; box-shadow: 0 0 15px #ff6600; }
+        #combo-meter.fire-3 { border-color: #ff0000; box-shadow: 0 0 25px #ff0000; }
+        #combo-meter.fire-4 { border-color: #ff00ff; box-shadow: 0 0 35px #ff00ff; }
+
+        #combo-meter .combo-label {
+            color: #888;
+            font-size: 0.8rem;
+        }
+
+        #combo-meter .combo-value {
+            color: #fff;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        #combo-meter .combo-mult {
+            color: #00ff88;
+            font-size: 1rem;
+        }
+
         /* Broken packages counter */
         #broken-counter {
             position: absolute;
@@ -419,8 +645,66 @@
             margin-top: 5px;
         }
 
+        /* Perfect streak counter */
+        #perfect-streak {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 255, 136, 0.2);
+            padding: 10px 25px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #perfect-streak.visible {
+            opacity: 1;
+        }
+
+        #perfect-streak span {
+            color: #00ff88;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        /* Timer */
+        #timer {
+            position: absolute;
+            top: 20px;
+            left: 140px;
+            color: #fff;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
         .hidden {
             display: none !important;
+        }
+
+        /* Ultimate active overlay */
+        #ultimate-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 90;
+            opacity: 0;
+            background: radial-gradient(ellipse at center, rgba(0, 255, 255, 0.1) 0%, transparent 70%);
+            transition: opacity 0.3s;
+        }
+
+        #ultimate-overlay.active {
+            opacity: 1;
+            animation: ultOverlay 0.5s infinite alternate;
+        }
+
+        @keyframes ultOverlay {
+            0% { background: radial-gradient(ellipse at center, rgba(0, 255, 255, 0.1) 0%, transparent 70%); }
+            100% { background: radial-gradient(ellipse at center, rgba(255, 0, 255, 0.15) 0%, transparent 70%); }
         }
     </style>
 </head>
@@ -430,16 +714,49 @@
         <div id="start-screen">
             <h1>ATOMIC PARCEL</h1>
             <h2>"Livraison express... ou presque"</h2>
+
             <div class="instructions">
                 <h3>Comment jouer</h3>
-                <p><span class="key-hint">A</span> Lancer un CUBE</p>
-                <p><span class="key-hint">P</span> Lancer une SPHERE</p>
-                <p><span class="key-hint">ESPACE</span> Lancer une PIZZA</p>
+                <p>Lancez les colis dans le camion en rythme avec la musique!</p>
                 <p><strong>Visez avec la souris</strong> - Plus vous visez haut, plus vous lancez fort!</p>
                 <p><strong>Timing:</strong> Appuyez quand la note atteint la ligne centrale</p>
-                <p><strong>Objectif:</strong> Cassez un maximum de colis dans le camion!</p>
+                <p><strong>Combo:</strong> Enchainez les hits pour augmenter votre puissance!</p>
+                <p><strong>Ultime:</strong> 25 PARFAITS d'affilée = mode automatique 10 sec!</p>
             </div>
-            <button id="start-btn">COMMENCER LE CHAOS</button>
+
+            <div class="instructions">
+                <h3>Configuration des touches</h3>
+                <div class="key-config">
+                    <label>CUBE:</label>
+                    <button class="key-config-btn" data-action="cube" id="key-cube-btn">A</button>
+                </div>
+                <div class="key-config">
+                    <label>SPHERE:</label>
+                    <button class="key-config-btn" data-action="sphere" id="key-sphere-btn">P</button>
+                </div>
+                <div class="key-config">
+                    <label>PIZZA:</label>
+                    <button class="key-config-btn" data-action="pizza" id="key-pizza-btn">ESPACE</button>
+                </div>
+                <div class="key-config">
+                    <label>ULTIME:</label>
+                    <button class="key-config-btn" data-action="ultimate" id="key-ult-btn">E</button>
+                </div>
+                <p style="color: #888; font-size: 0.9rem; margin-top: 10px;">Cliquez sur une touche pour la modifier</p>
+            </div>
+
+            <div class="menu-buttons">
+                <button class="menu-btn" id="start-btn">COMMENCER LE CHAOS</button>
+            </div>
+        </div>
+
+        <!-- Pause Screen -->
+        <div id="pause-screen">
+            <h1>PAUSE</h1>
+            <div class="menu-buttons">
+                <button class="menu-btn" id="resume-btn">REPRENDRE</button>
+                <button class="menu-btn secondary" id="quit-btn">QUITTER</button>
+            </div>
         </div>
 
         <!-- Game Over Screen -->
@@ -447,24 +764,50 @@
             <h1>FIN DU SERVICE!</h1>
             <div id="final-score">0</div>
             <div id="stats">
-                <p>Colis cassés: <span id="stat-broken">0</span></p>
+                <p>Colis explosés: <span id="stat-broken">0</span></p>
                 <p>Combo max: <span id="stat-combo">0</span></p>
                 <p>Précision: <span id="stat-accuracy">0%</span></p>
+                <p>Ultimes déclenchés: <span id="stat-ultimates">0</span></p>
             </div>
-            <button id="start-btn-2" style="padding: 20px 60px; font-size: 1.5rem; background: linear-gradient(135deg, #ff6b35, #ff3366); border: none; border-radius: 50px; color: white; cursor: pointer; font-weight: bold;">REJOUER</button>
+            <div class="menu-buttons">
+                <button class="menu-btn" id="restart-btn">REJOUER</button>
+                <button class="menu-btn secondary" id="menu-btn">MENU</button>
+            </div>
         </div>
 
         <!-- HUD -->
         <div id="hud">
             <div id="score-display">0</div>
-            <div id="combo-display">Combo: <span id="combo-value">0</span>x</div>
-            <div id="multiplier">Multiplicateur: x<span id="mult-value">1</span></div>
+        </div>
+
+        <!-- Timer -->
+        <div id="timer">1:30</div>
+
+        <!-- Perfect streak -->
+        <div id="perfect-streak">
+            <span id="streak-value">0</span> PARFAITS!
+        </div>
+
+        <!-- Combo meter -->
+        <div id="combo-meter">
+            <div class="combo-label">COMBO</div>
+            <div class="combo-value" id="combo-value">0</div>
+            <div class="combo-mult">x<span id="mult-value">1</span></div>
         </div>
 
         <!-- Broken counter -->
         <div id="broken-counter">
             <span id="broken-value">0</span>
-            <span id="broken-label">COLIS DETRUITS</span>
+            <span id="broken-label">EXPLOSES</span>
+        </div>
+
+        <!-- Ultimate bar -->
+        <div id="ultimate-container">
+            <div id="ultimate-label">ULTIME</div>
+            <div id="ultimate-bar">
+                <div id="ultimate-fill" style="height: 0%"></div>
+            </div>
+            <div id="ultimate-key">E</div>
         </div>
 
         <!-- Power meter -->
@@ -472,6 +815,9 @@
             <div id="power-fill" style="height: 50%"></div>
         </div>
         <div id="power-label">PUISSANCE</div>
+
+        <!-- Ultimate overlay -->
+        <div id="ultimate-overlay"></div>
 
         <!-- Crosshair -->
         <div id="crosshair"></div>
@@ -484,15 +830,15 @@
         <!-- Controls display -->
         <div id="controls-display">
             <div class="control-key cube-key" id="key-a">
-                <span class="key-letter">A</span>
+                <span class="key-letter" id="display-key-cube">A</span>
                 <span class="key-icon">CUBE</span>
             </div>
             <div class="control-key sphere-key" id="key-p">
-                <span class="key-letter">P</span>
+                <span class="key-letter" id="display-key-sphere">P</span>
                 <span class="key-icon">SPHERE</span>
             </div>
             <div class="control-key pizza-key" id="key-space">
-                <span class="key-letter">_</span>
+                <span class="key-letter" id="display-key-pizza">_</span>
                 <span class="key-icon">PIZZA</span>
             </div>
         </div>
@@ -508,6 +854,14 @@
         // ATOMIC PARCEL - Rhythm Delivery Chaos
         // ============================================
 
+        // Key bindings (configurable)
+        const keyBindings = {
+            cube: 'a',
+            sphere: 'p',
+            pizza: ' ',
+            ultimate: 'e'
+        };
+
         // Game state
         const gameState = {
             score: 0,
@@ -517,29 +871,36 @@
             brokenPackages: 0,
             totalNotes: 0,
             hitNotes: 0,
+            perfectStreak: 0,
+            ultimateCharge: 0,
+            ultimateActive: false,
+            ultimateTimer: 0,
+            ultimatesUsed: 0,
             isPlaying: false,
             isPaused: false,
             bpm: 120,
             beatInterval: 500,
             lastBeatTime: 0,
             mouseY: 0.5,
-            power: 0.5
+            power: 0.5,
+            comboPower: 1 // Multiplier for throw power based on combo
         };
 
-        // Package types
-        const PACKAGE_TYPES = {
-            CUBE: { key: 'a', name: 'cube', color: 0x4a90d9 },
-            SPHERE: { key: 'p', name: 'sphere', color: 0xd94a4a },
-            PIZZA: { key: ' ', name: 'pizza', color: 0xd9a54a }
-        };
+        // Constants
+        const ULTIMATE_CHARGE_REQUIRED = 25;
+        const ULTIMATE_DURATION = 10000; // 10 seconds
 
         // DOM elements
         const elements = {
             container: document.getElementById('game-container'),
             startScreen: document.getElementById('start-screen'),
+            pauseScreen: document.getElementById('pause-screen'),
             gameOverScreen: document.getElementById('game-over-screen'),
             startBtn: document.getElementById('start-btn'),
-            startBtn2: document.getElementById('start-btn-2'),
+            resumeBtn: document.getElementById('resume-btn'),
+            quitBtn: document.getElementById('quit-btn'),
+            restartBtn: document.getElementById('restart-btn'),
+            menuBtn: document.getElementById('menu-btn'),
             scoreDisplay: document.getElementById('score-display'),
             comboValue: document.getElementById('combo-value'),
             multValue: document.getElementById('mult-value'),
@@ -552,18 +913,33 @@
             finalScore: document.getElementById('final-score'),
             statBroken: document.getElementById('stat-broken'),
             statCombo: document.getElementById('stat-combo'),
-            statAccuracy: document.getElementById('stat-accuracy')
+            statAccuracy: document.getElementById('stat-accuracy'),
+            statUltimates: document.getElementById('stat-ultimates'),
+            ultimateBar: document.getElementById('ultimate-bar'),
+            ultimateFill: document.getElementById('ultimate-fill'),
+            ultimateKey: document.getElementById('ultimate-key'),
+            ultimateOverlay: document.getElementById('ultimate-overlay'),
+            perfectStreak: document.getElementById('perfect-streak'),
+            streakValue: document.getElementById('streak-value'),
+            comboMeter: document.getElementById('combo-meter'),
+            timer: document.getElementById('timer'),
+            displayKeyCube: document.getElementById('display-key-cube'),
+            displayKeySphere: document.getElementById('display-key-sphere'),
+            displayKeyPizza: document.getElementById('display-key-pizza'),
+            keyCubeBtn: document.getElementById('key-cube-btn'),
+            keySphereBtn: document.getElementById('key-sphere-btn'),
+            keyPizzaBtn: document.getElementById('key-pizza-btn'),
+            keyUltBtn: document.getElementById('key-ult-btn')
         };
 
         // Three.js variables
         let scene, camera, renderer;
-        let truck, truckBody;
+        let truck;
         let packages = [];
         let particles = [];
 
         // Cannon.js physics
         let world;
-        let packageBodies = [];
 
         // Audio context
         let audioContext;
@@ -573,131 +949,436 @@
         let beatNotes = [];
         let noteId = 0;
 
+        // Key binding listener
+        let listeningForKey = null;
+
+        // Get display name for key
+        function getKeyDisplayName(key) {
+            if (key === ' ') return 'ESPACE';
+            if (key === 'arrowup') return '↑';
+            if (key === 'arrowdown') return '↓';
+            if (key === 'arrowleft') return '←';
+            if (key === 'arrowright') return '→';
+            return key.toUpperCase();
+        }
+
+        // Update key display
+        function updateKeyDisplays() {
+            elements.displayKeyCube.textContent = getKeyDisplayName(keyBindings.cube);
+            elements.displayKeySphere.textContent = getKeyDisplayName(keyBindings.sphere);
+            elements.displayKeyPizza.textContent = getKeyDisplayName(keyBindings.pizza);
+
+            elements.keyCubeBtn.textContent = getKeyDisplayName(keyBindings.cube);
+            elements.keySphereBtn.textContent = getKeyDisplayName(keyBindings.sphere);
+            elements.keyPizzaBtn.textContent = getKeyDisplayName(keyBindings.pizza);
+            elements.keyUltBtn.textContent = getKeyDisplayName(keyBindings.ultimate);
+        }
+
+        // Key binding click handlers
+        function setupKeyBindingListeners() {
+            document.querySelectorAll('.key-config-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Remove listening state from all buttons
+                    document.querySelectorAll('.key-config-btn').forEach(b => b.classList.remove('listening'));
+
+                    // Set this button to listening
+                    btn.classList.add('listening');
+                    listeningForKey = btn.dataset.action;
+                    btn.textContent = '...';
+                });
+            });
+        }
+
+        // Handle key binding
+        function handleKeyBinding(e) {
+            if (!listeningForKey) return;
+
+            e.preventDefault();
+            const key = e.key.toLowerCase();
+
+            // Check if key is already bound to something else
+            for (const [action, boundKey] of Object.entries(keyBindings)) {
+                if (boundKey === key && action !== listeningForKey) {
+                    // Swap keys
+                    keyBindings[action] = keyBindings[listeningForKey];
+                }
+            }
+
+            keyBindings[listeningForKey] = key;
+
+            // Update displays
+            updateKeyDisplays();
+
+            // Remove listening state
+            document.querySelectorAll('.key-config-btn').forEach(b => b.classList.remove('listening'));
+            listeningForKey = null;
+        }
+
         // Initialize Three.js scene
         function initScene() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x1a1a2e);
-            scene.fog = new THREE.Fog(0x1a1a2e, 10, 50);
+            scene.fog = new THREE.Fog(0x1a1a2e, 15, 60);
 
-            // Camera
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 3, 8);
-            camera.lookAt(0, 1, -5);
+            // Camera - vue depuis le quai
+            camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2.5, 10);
+            camera.lookAt(0, 2, -5);
 
             // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
             elements.container.insertBefore(renderer.domElement, elements.container.firstChild);
 
             // Lights
-            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            const ambientLight = new THREE.AmbientLight(0x404050, 0.4);
             scene.add(ambientLight);
 
-            const mainLight = new THREE.DirectionalLight(0xffffff, 1);
-            mainLight.position.set(5, 10, 5);
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            mainLight.position.set(5, 15, 10);
             mainLight.castShadow = true;
             mainLight.shadow.mapSize.width = 2048;
             mainLight.shadow.mapSize.height = 2048;
             mainLight.shadow.camera.near = 0.5;
             mainLight.shadow.camera.far = 50;
+            mainLight.shadow.camera.left = -15;
+            mainLight.shadow.camera.right = 15;
+            mainLight.shadow.camera.top = 15;
+            mainLight.shadow.camera.bottom = -15;
             scene.add(mainLight);
 
-            const fillLight = new THREE.DirectionalLight(0x6688ff, 0.3);
-            fillLight.position.set(-5, 5, 0);
-            scene.add(fillLight);
+            // Warehouse lights
+            const warehouseLight1 = new THREE.PointLight(0xffaa55, 0.8, 25);
+            warehouseLight1.position.set(-4, 5, 5);
+            scene.add(warehouseLight1);
 
-            // Colored accent lights
-            const redLight = new THREE.PointLight(0xff0066, 0.5, 20);
-            redLight.position.set(-5, 3, 0);
-            scene.add(redLight);
+            const warehouseLight2 = new THREE.PointLight(0xffaa55, 0.8, 25);
+            warehouseLight2.position.set(4, 5, 5);
+            scene.add(warehouseLight2);
 
-            const blueLight = new THREE.PointLight(0x0066ff, 0.5, 20);
-            blueLight.position.set(5, 3, 0);
-            scene.add(blueLight);
-
-            // Ground
-            const groundGeometry = new THREE.PlaneGeometry(100, 100);
-            const groundMaterial = new THREE.MeshStandardMaterial({
-                color: 0x222233,
-                roughness: 0.8
-            });
-            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-            ground.rotation.x = -Math.PI / 2;
-            ground.receiveShadow = true;
-            scene.add(ground);
-
-            // Grid
-            const gridHelper = new THREE.GridHelper(50, 50, 0x444466, 0x333355);
-            scene.add(gridHelper);
-
-            // Create truck
+            // Create environment
+            createWarehouseEnvironment();
             createTruck();
 
             // Handle window resize
             window.addEventListener('resize', onWindowResize);
         }
 
-        // Create the truck/trailer
+        // Create warehouse/dock environment
+        function createWarehouseEnvironment() {
+            // Ground - concrete floor
+            const groundGeometry = new THREE.PlaneGeometry(50, 50);
+            const groundMaterial = new THREE.MeshStandardMaterial({
+                color: 0x555566,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Loading dock platform
+            const dockGeometry = new THREE.BoxGeometry(8, 0.5, 6);
+            const dockMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666677,
+                roughness: 0.8
+            });
+            const dock = new THREE.Mesh(dockGeometry, dockMaterial);
+            dock.position.set(0, 0.25, 7);
+            dock.receiveShadow = true;
+            dock.castShadow = true;
+            scene.add(dock);
+
+            // Yellow safety stripes on dock edge
+            const stripeGeometry = new THREE.BoxGeometry(8, 0.52, 0.3);
+            const stripeMaterial = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+            const stripe = new THREE.Mesh(stripeGeometry, stripeMaterial);
+            stripe.position.set(0, 0.26, 4.15);
+            scene.add(stripe);
+
+            // Warehouse back wall
+            const wallGeometry = new THREE.BoxGeometry(20, 8, 0.5);
+            const wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0x444455,
+                roughness: 0.7
+            });
+            const backWall = new THREE.Mesh(wallGeometry, wallMaterial);
+            backWall.position.set(0, 4, 12);
+            backWall.receiveShadow = true;
+            scene.add(backWall);
+
+            // Side walls
+            const sideWallGeometry = new THREE.BoxGeometry(0.5, 8, 15);
+
+            const leftWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
+            leftWall.position.set(-10, 4, 5);
+            leftWall.receiveShadow = true;
+            scene.add(leftWall);
+
+            const rightWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
+            rightWall.position.set(10, 4, 5);
+            rightWall.receiveShadow = true;
+            scene.add(rightWall);
+
+            // Palettes on the dock
+            for (let i = 0; i < 3; i++) {
+                const palette = createPalette();
+                palette.position.set(-3 + i * 3, 0.5, 8);
+                palette.rotation.y = Math.random() * 0.2 - 0.1;
+                scene.add(palette);
+            }
+
+            // Warning signs
+            const signGeometry = new THREE.PlaneGeometry(1.5, 1);
+            const signMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff6600,
+                side: THREE.DoubleSide
+            });
+            const sign1 = new THREE.Mesh(signGeometry, signMaterial);
+            sign1.position.set(-4, 3, 11.7);
+            scene.add(sign1);
+
+            const sign2 = new THREE.Mesh(signGeometry, signMaterial);
+            sign2.position.set(4, 3, 11.7);
+            scene.add(sign2);
+        }
+
+        // Create a palette
+        function createPalette() {
+            const group = new THREE.Group();
+            const woodMaterial = new THREE.MeshStandardMaterial({
+                color: 0x8B7355,
+                roughness: 0.9
+            });
+
+            // Top planks
+            for (let i = 0; i < 5; i++) {
+                const plank = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.2, 0.05, 0.15),
+                    woodMaterial
+                );
+                plank.position.set(0, 0.15, -0.4 + i * 0.2);
+                plank.castShadow = true;
+                group.add(plank);
+            }
+
+            // Support blocks
+            for (let x = -0.4; x <= 0.4; x += 0.4) {
+                for (let z = -0.3; z <= 0.3; z += 0.3) {
+                    const block = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.1, 0.12, 0.1),
+                        woodMaterial
+                    );
+                    block.position.set(x, 0.06, z);
+                    group.add(block);
+                }
+            }
+
+            return group;
+        }
+
+        // Create the truck/trailer - realistic semi-trailer interior
         function createTruck() {
             truck = new THREE.Group();
 
-            // Trailer body (container)
-            const trailerGeometry = new THREE.BoxGeometry(4, 3, 8);
-            const trailerMaterial = new THREE.MeshStandardMaterial({
-                color: 0x666688,
-                roughness: 0.6,
-                metalness: 0.3
+            // Materials
+            const metalMaterial = new THREE.MeshStandardMaterial({
+                color: 0x888899,
+                roughness: 0.4,
+                metalness: 0.6
             });
-            const trailer = new THREE.Mesh(trailerGeometry, trailerMaterial);
-            trailer.position.set(0, 1.5, -8);
-            trailer.castShadow = true;
-            trailer.receiveShadow = true;
-            truck.add(trailer);
 
-            // Open back of trailer (frame)
-            const frameGeometry = new THREE.BoxGeometry(4.2, 3.2, 0.1);
-            const frameMaterial = new THREE.MeshStandardMaterial({
-                color: 0xff6b35,
-                emissive: 0xff6b35,
-                emissiveIntensity: 0.2
+            const darkMetalMaterial = new THREE.MeshStandardMaterial({
+                color: 0x444455,
+                roughness: 0.5,
+                metalness: 0.5
             });
-            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
-            frame.position.set(0, 1.5, -3.95);
-            truck.add(frame);
 
-            // Inner frame (the actual opening)
-            const innerGeometry = new THREE.BoxGeometry(3.6, 2.8, 0.2);
-            const innerMaterial = new THREE.MeshStandardMaterial({
-                color: 0x111122,
-                roughness: 1
-            });
-            const inner = new THREE.Mesh(innerGeometry, innerMaterial);
-            inner.position.set(0, 1.5, -4);
-            truck.add(inner);
-
-            // Floor inside trailer
-            const floorGeometry = new THREE.BoxGeometry(3.8, 0.1, 7.8);
             const floorMaterial = new THREE.MeshStandardMaterial({
-                color: 0x554433,
-                roughness: 0.9
+                color: 0x665544,
+                roughness: 0.9,
+                metalness: 0.1
             });
+
+            const trailerWidth = 2.4;
+            const trailerHeight = 2.8;
+            const trailerLength = 10;
+
+            // Trailer exterior shell
+            const shellGeometry = new THREE.BoxGeometry(trailerWidth + 0.2, trailerHeight + 0.2, trailerLength);
+            const shellMaterial = new THREE.MeshStandardMaterial({
+                color: 0xeeeeee,
+                roughness: 0.3,
+                metalness: 0.2
+            });
+            const shell = new THREE.Mesh(shellGeometry, shellMaterial);
+            shell.position.set(0, trailerHeight / 2 + 0.8, -trailerLength / 2 + 2);
+            shell.castShadow = true;
+            truck.add(shell);
+
+            // Interior floor (wooden planks)
+            const floorGeometry = new THREE.BoxGeometry(trailerWidth - 0.1, 0.1, trailerLength - 0.2);
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-            floor.position.set(0, 0.1, -8);
+            floor.position.set(0, 0.85, -trailerLength / 2 + 2);
             floor.receiveShadow = true;
             truck.add(floor);
 
+            // Floor planks detail
+            for (let i = 0; i < 20; i++) {
+                const plankLine = new THREE.Mesh(
+                    new THREE.BoxGeometry(trailerWidth - 0.1, 0.11, 0.02),
+                    darkMetalMaterial
+                );
+                plankLine.position.set(0, 0.86, 1.5 - i * 0.5);
+                truck.add(plankLine);
+            }
+
+            // Interior walls with corrugated metal effect (ribs)
+            const ribCount = 15;
+            const ribSpacing = trailerLength / ribCount;
+
+            // Left wall ribs
+            for (let i = 0; i < ribCount; i++) {
+                const rib = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.08, trailerHeight - 0.3, 0.15),
+                    metalMaterial
+                );
+                rib.position.set(-trailerWidth / 2 + 0.1, trailerHeight / 2 + 0.85, 1.8 - i * ribSpacing);
+                truck.add(rib);
+            }
+
+            // Right wall ribs
+            for (let i = 0; i < ribCount; i++) {
+                const rib = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.08, trailerHeight - 0.3, 0.15),
+                    metalMaterial
+                );
+                rib.position.set(trailerWidth / 2 - 0.1, trailerHeight / 2 + 0.85, 1.8 - i * ribSpacing);
+                truck.add(rib);
+            }
+
+            // Ceiling ribs
+            for (let i = 0; i < ribCount; i++) {
+                const rib = new THREE.Mesh(
+                    new THREE.BoxGeometry(trailerWidth - 0.3, 0.08, 0.15),
+                    metalMaterial
+                );
+                rib.position.set(0, trailerHeight + 0.7, 1.8 - i * ribSpacing);
+                truck.add(rib);
+            }
+
+            // Back wall (inside)
+            const backWallGeometry = new THREE.BoxGeometry(trailerWidth - 0.2, trailerHeight - 0.2, 0.1);
+            const backWall = new THREE.Mesh(backWallGeometry, metalMaterial);
+            backWall.position.set(0, trailerHeight / 2 + 0.85, -trailerLength + 2.5);
+            truck.add(backWall);
+
+            // Interior lighting (LED strips)
+            const ledGeometry = new THREE.BoxGeometry(0.05, 0.05, trailerLength - 1);
+            const ledMaterial = new THREE.MeshBasicMaterial({ color: 0xffffee });
+
+            const ledLeft = new THREE.Mesh(ledGeometry, ledMaterial);
+            ledLeft.position.set(-trailerWidth / 2 + 0.2, trailerHeight + 0.5, -trailerLength / 2 + 2);
+            truck.add(ledLeft);
+
+            const ledRight = new THREE.Mesh(ledGeometry, ledMaterial);
+            ledRight.position.set(trailerWidth / 2 - 0.2, trailerHeight + 0.5, -trailerLength / 2 + 2);
+            truck.add(ledRight);
+
+            // Interior lights
+            const interiorLight1 = new THREE.PointLight(0xffffdd, 0.6, 12);
+            interiorLight1.position.set(0, trailerHeight + 0.3, -2);
+            truck.add(interiorLight1);
+
+            const interiorLight2 = new THREE.PointLight(0xffffdd, 0.4, 10);
+            interiorLight2.position.set(0, trailerHeight + 0.3, -5);
+            truck.add(interiorLight2);
+
+            // Tie-down rails on floor
+            const railGeometry = new THREE.BoxGeometry(0.1, 0.05, trailerLength - 0.5);
+            const railMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666677,
+                roughness: 0.3,
+                metalness: 0.8
+            });
+
+            const railLeft = new THREE.Mesh(railGeometry, railMaterial);
+            railLeft.position.set(-trailerWidth / 2 + 0.3, 0.92, -trailerLength / 2 + 2);
+            truck.add(railLeft);
+
+            const railRight = new THREE.Mesh(railGeometry, railMaterial);
+            railRight.position.set(trailerWidth / 2 - 0.3, 0.92, -trailerLength / 2 + 2);
+            truck.add(railRight);
+
+            // E-Track vertical rails on walls
+            for (let z = 0; z < 4; z++) {
+                const eTrack = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.05, trailerHeight - 0.5, 0.08),
+                    railMaterial
+                );
+                eTrack.position.set(-trailerWidth / 2 + 0.15, trailerHeight / 2 + 0.85, 0 - z * 2);
+                truck.add(eTrack);
+
+                const eTrackR = eTrack.clone();
+                eTrackR.position.x = trailerWidth / 2 - 0.15;
+                truck.add(eTrackR);
+            }
+
+            // Door frame (open position)
+            const frameThickness = 0.15;
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff6633,
+                roughness: 0.5,
+                metalness: 0.3,
+                emissive: 0xff3300,
+                emissiveIntensity: 0.1
+            });
+
+            // Top frame
+            const topFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(trailerWidth + 0.4, frameThickness, frameThickness),
+                frameMaterial
+            );
+            topFrame.position.set(0, trailerHeight + 0.85, 2.1);
+            truck.add(topFrame);
+
+            // Side frames
+            const sideFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(frameThickness, trailerHeight + 0.1, frameThickness),
+                frameMaterial
+            );
+            sideFrame.position.set(-trailerWidth / 2 - 0.1, trailerHeight / 2 + 0.8, 2.1);
+            truck.add(sideFrame);
+
+            const sideFrameR = sideFrame.clone();
+            sideFrameR.position.x = trailerWidth / 2 + 0.1;
+            truck.add(sideFrameR);
+
+            // Bottom frame
+            const bottomFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(trailerWidth + 0.4, frameThickness, frameThickness),
+                frameMaterial
+            );
+            bottomFrame.position.set(0, 0.8, 2.1);
+            truck.add(bottomFrame);
+
             // Wheels
-            const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16);
+            const wheelGeometry = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 24);
             const wheelMaterial = new THREE.MeshStandardMaterial({
                 color: 0x222222,
-                roughness: 0.7
+                roughness: 0.8
             });
 
             const wheelPositions = [
-                [-1.8, 0.5, -6], [1.8, 0.5, -6],
-                [-1.8, 0.5, -10], [1.8, 0.5, -10]
+                [-1.1, 0.45, -1], [1.1, 0.45, -1],
+                [-1.1, 0.45, -2], [1.1, 0.45, -2],
+                [-1.1, 0.45, -6], [1.1, 0.45, -6],
+                [-1.1, 0.45, -7], [1.1, 0.45, -7]
             ];
 
             wheelPositions.forEach(pos => {
@@ -706,18 +1387,46 @@
                 wheel.position.set(...pos);
                 wheel.castShadow = true;
                 truck.add(wheel);
+
+                // Rim
+                const rimGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.36, 12);
+                const rimMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x888888,
+                    metalness: 0.8,
+                    roughness: 0.3
+                });
+                const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+                rim.rotation.z = Math.PI / 2;
+                rim.position.set(...pos);
+                truck.add(rim);
             });
 
-            // Company logo text area
-            const logoGeometry = new THREE.PlaneGeometry(3, 1);
-            const logoMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffcc00,
-                transparent: true,
-                opacity: 0.9
+            // Mud flaps
+            const flapGeometry = new THREE.BoxGeometry(0.02, 0.4, 0.3);
+            const flapMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+            [[-1.3, 0.3, -0.5], [1.3, 0.3, -0.5], [-1.3, 0.3, -5.5], [1.3, 0.3, -5.5]].forEach(pos => {
+                const flap = new THREE.Mesh(flapGeometry, flapMaterial);
+                flap.position.set(...pos);
+                truck.add(flap);
             });
-            const logo = new THREE.Mesh(logoGeometry, logoMaterial);
-            logo.position.set(0, 2.5, -3.9);
-            truck.add(logo);
+
+            // Company branding on side
+            const brandGeometry = new THREE.PlaneGeometry(4, 1.2);
+            const brandMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff6633,
+                side: THREE.DoubleSide
+            });
+
+            const brandLeft = new THREE.Mesh(brandGeometry, brandMaterial);
+            brandLeft.position.set(-trailerWidth / 2 - 0.12, 2.5, -3);
+            brandLeft.rotation.y = Math.PI / 2;
+            truck.add(brandLeft);
+
+            const brandRight = new THREE.Mesh(brandGeometry, brandMaterial);
+            brandRight.position.set(trailerWidth / 2 + 0.12, 2.5, -3);
+            brandRight.rotation.y = -Math.PI / 2;
+            truck.add(brandRight);
 
             scene.add(truck);
         }
@@ -725,7 +1434,7 @@
         // Initialize Cannon.js physics
         function initPhysics() {
             world = new CANNON.World();
-            world.gravity.set(0, -15, 0);
+            world.gravity.set(0, -20, 0);
             world.broadphase = new CANNON.NaiveBroadphase();
             world.solver.iterations = 10;
 
@@ -736,42 +1445,51 @@
             groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
             world.addBody(groundBody);
 
-            // Truck floor
-            const truckFloorShape = new CANNON.Box(new CANNON.Vec3(1.9, 0.05, 3.9));
-            const truckFloorBody = new CANNON.Body({ mass: 0 });
-            truckFloorBody.addShape(truckFloorShape);
-            truckFloorBody.position.set(0, 0.1, -8);
-            world.addBody(truckFloorBody);
+            // Truck interior colliders
+            const trailerWidth = 2.4;
+            const trailerHeight = 2.8;
+            const trailerLength = 10;
 
-            // Truck walls
-            const wallThickness = 0.1;
+            // Floor
+            const floorShape = new CANNON.Box(new CANNON.Vec3(trailerWidth / 2, 0.05, trailerLength / 2));
+            const floorBody = new CANNON.Body({ mass: 0 });
+            floorBody.addShape(floorShape);
+            floorBody.position.set(0, 0.85, -trailerLength / 2 + 2);
+            world.addBody(floorBody);
 
             // Back wall
-            const backWallShape = new CANNON.Box(new CANNON.Vec3(2, 1.5, wallThickness));
+            const backWallShape = new CANNON.Box(new CANNON.Vec3(trailerWidth / 2, trailerHeight / 2, 0.1));
             const backWallBody = new CANNON.Body({ mass: 0 });
             backWallBody.addShape(backWallShape);
-            backWallBody.position.set(0, 1.5, -12);
+            backWallBody.position.set(0, trailerHeight / 2 + 0.85, -trailerLength + 2.5);
             world.addBody(backWallBody);
 
             // Side walls
-            const sideWallShape = new CANNON.Box(new CANNON.Vec3(wallThickness, 1.5, 4));
+            const sideWallShape = new CANNON.Box(new CANNON.Vec3(0.1, trailerHeight / 2, trailerLength / 2));
 
             const leftWallBody = new CANNON.Body({ mass: 0 });
             leftWallBody.addShape(sideWallShape);
-            leftWallBody.position.set(-2, 1.5, -8);
+            leftWallBody.position.set(-trailerWidth / 2, trailerHeight / 2 + 0.85, -trailerLength / 2 + 2);
             world.addBody(leftWallBody);
 
             const rightWallBody = new CANNON.Body({ mass: 0 });
             rightWallBody.addShape(sideWallShape);
-            rightWallBody.position.set(2, 1.5, -8);
+            rightWallBody.position.set(trailerWidth / 2, trailerHeight / 2 + 0.85, -trailerLength / 2 + 2);
             world.addBody(rightWallBody);
 
             // Ceiling
-            const ceilingShape = new CANNON.Box(new CANNON.Vec3(2, wallThickness, 4));
+            const ceilingShape = new CANNON.Box(new CANNON.Vec3(trailerWidth / 2, 0.1, trailerLength / 2));
             const ceilingBody = new CANNON.Body({ mass: 0 });
             ceilingBody.addShape(ceilingShape);
-            ceilingBody.position.set(0, 3, -8);
+            ceilingBody.position.set(0, trailerHeight + 0.85, -trailerLength / 2 + 2);
             world.addBody(ceilingBody);
+
+            // Dock platform
+            const dockShape = new CANNON.Box(new CANNON.Vec3(4, 0.25, 3));
+            const dockBody = new CANNON.Body({ mass: 0 });
+            dockBody.addShape(dockShape);
+            dockBody.position.set(0, 0.25, 7);
+            world.addBody(dockBody);
         }
 
         // Initialize audio
@@ -802,16 +1520,26 @@
             osc.stop(audioContext.currentTime + duration);
         }
 
+        // Play ultimate sound
+        function playUltimateSound() {
+            if (!audioContext) return;
+
+            // Epic chord
+            [200, 300, 400, 500].forEach((freq, i) => {
+                setTimeout(() => playBeatSound(freq, 'sine', 0.5), i * 50);
+            });
+        }
+
         // Play background beat
         function playBackgroundBeat() {
-            if (!gameState.isPlaying) return;
+            if (!gameState.isPlaying || gameState.isPaused) return;
 
             // Kick drum
             playBeatSound(60, 'sine', 0.15);
 
             // Schedule hi-hat
             setTimeout(() => {
-                if (gameState.isPlaying) {
+                if (gameState.isPlaying && !gameState.isPaused) {
                     playBeatSound(800, 'square', 0.05);
                 }
             }, gameState.beatInterval / 2);
@@ -822,11 +1550,14 @@
             let geometry, material;
             const group = new THREE.Group();
 
+            // Scale based on combo power
+            const scale = 1 + (gameState.comboPower - 1) * 0.3;
+
             switch(type) {
                 case 'cube':
-                    geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+                    geometry = new THREE.BoxGeometry(0.5 * scale, 0.5 * scale, 0.5 * scale);
                     material = new THREE.MeshStandardMaterial({
-                        color: PACKAGE_TYPES.CUBE.color,
+                        color: 0x4a90d9,
                         roughness: 0.4,
                         metalness: 0.1
                     });
@@ -836,15 +1567,18 @@
 
                     // Add tape lines
                     const tapeMaterial = new THREE.MeshBasicMaterial({ color: 0x8b7355 });
-                    const tape1 = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.05, 0.1), tapeMaterial);
-                    tape1.position.y = 0.25;
+                    const tape1 = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.52 * scale, 0.05 * scale, 0.1 * scale),
+                        tapeMaterial
+                    );
+                    tape1.position.y = 0.25 * scale;
                     group.add(tape1);
                     break;
 
                 case 'sphere':
-                    geometry = new THREE.SphereGeometry(0.3, 16, 16);
+                    geometry = new THREE.SphereGeometry(0.3 * scale, 16, 16);
                     material = new THREE.MeshStandardMaterial({
-                        color: PACKAGE_TYPES.SPHERE.color,
+                        color: 0xd94a4a,
                         roughness: 0.3,
                         metalness: 0.2
                     });
@@ -853,7 +1587,7 @@
                     group.add(sphere);
 
                     // Add bubble wrap look
-                    const wrapGeometry = new THREE.SphereGeometry(0.32, 8, 8);
+                    const wrapGeometry = new THREE.SphereGeometry(0.32 * scale, 8, 8);
                     const wrapMaterial = new THREE.MeshBasicMaterial({
                         color: 0xffffff,
                         wireframe: true,
@@ -865,9 +1599,9 @@
 
                 case 'pizza':
                     // Flat box for pizza
-                    geometry = new THREE.BoxGeometry(0.7, 0.15, 0.7);
+                    geometry = new THREE.BoxGeometry(0.7 * scale, 0.15 * scale, 0.7 * scale);
                     material = new THREE.MeshStandardMaterial({
-                        color: PACKAGE_TYPES.PIZZA.color,
+                        color: 0xd9a54a,
                         roughness: 0.8
                     });
                     const pizzaBox = new THREE.Mesh(geometry, material);
@@ -875,13 +1609,21 @@
                     group.add(pizzaBox);
 
                     // Add "PIZZA" indication on top
-                    const topGeometry = new THREE.CircleGeometry(0.25, 8);
+                    const topGeometry = new THREE.CircleGeometry(0.25 * scale, 8);
                     const topMaterial = new THREE.MeshBasicMaterial({ color: 0xcc0000 });
                     const top = new THREE.Mesh(topGeometry, topMaterial);
                     top.rotation.x = -Math.PI / 2;
-                    top.position.y = 0.08;
+                    top.position.y = 0.08 * scale;
                     group.add(top);
                     break;
+            }
+
+            // Add glow effect for high combo
+            if (gameState.comboPower >= 2) {
+                const glowColor = gameState.comboPower >= 3 ? 0xff0066 : 0xff6600;
+                const glowIntensity = (gameState.comboPower - 1) * 0.3;
+                group.children[0].material.emissive = new THREE.Color(glowColor);
+                group.children[0].material.emissiveIntensity = glowIntensity;
             }
 
             return group;
@@ -890,20 +1632,24 @@
         // Create physics body for package
         function createPackageBody(type, position, velocity) {
             let shape, mass = 2;
+            const scale = 1 + (gameState.comboPower - 1) * 0.3;
 
             switch(type) {
                 case 'cube':
-                    shape = new CANNON.Box(new CANNON.Vec3(0.25, 0.25, 0.25));
+                    shape = new CANNON.Box(new CANNON.Vec3(0.25 * scale, 0.25 * scale, 0.25 * scale));
                     break;
                 case 'sphere':
-                    shape = new CANNON.Sphere(0.3);
+                    shape = new CANNON.Sphere(0.3 * scale);
                     mass = 1.5;
                     break;
                 case 'pizza':
-                    shape = new CANNON.Box(new CANNON.Vec3(0.35, 0.075, 0.35));
+                    shape = new CANNON.Box(new CANNON.Vec3(0.35 * scale, 0.075 * scale, 0.35 * scale));
                     mass = 1;
                     break;
             }
+
+            // Increase mass with combo power
+            mass *= gameState.comboPower;
 
             const body = new CANNON.Body({ mass: mass });
             body.addShape(shape);
@@ -911,17 +1657,19 @@
             body.velocity.copy(velocity);
 
             // Add some spin
+            const spinMultiplier = gameState.comboPower;
             body.angularVelocity.set(
-                (Math.random() - 0.5) * 10,
-                (Math.random() - 0.5) * 10,
-                (Math.random() - 0.5) * 10
+                (Math.random() - 0.5) * 10 * spinMultiplier,
+                (Math.random() - 0.5) * 10 * spinMultiplier,
+                (Math.random() - 0.5) * 10 * spinMultiplier
             );
 
-            // Collision detection for breaking
+            // Collision detection for breaking - easier to break with high combo
+            const breakThreshold = Math.max(4, 10 - gameState.comboPower * 2);
+
             body.addEventListener('collide', (e) => {
                 const relVel = e.contact.getImpactVelocityAlongNormal();
-                if (Math.abs(relVel) > 8) {
-                    // Package breaks!
+                if (Math.abs(relVel) > breakThreshold) {
                     const meshData = packages.find(p => p.body === body);
                     if (meshData && !meshData.broken) {
                         breakPackage(meshData);
@@ -937,19 +1685,24 @@
         function launchPackage(type) {
             const mesh = createPackageMesh(type);
 
-            // Start position (in front of camera)
-            const startPos = new THREE.Vector3(0, 1.5, 5);
+            // Start position (from the dock)
+            const startPos = new THREE.Vector3(
+                (Math.random() - 0.5) * 1,
+                2,
+                8
+            );
             mesh.position.copy(startPos);
             scene.add(mesh);
 
-            // Calculate velocity based on power
+            // Calculate velocity based on power and combo
             const power = gameState.power;
-            const baseSpeed = 12 + power * 15;
+            const comboPower = gameState.comboPower;
+            const baseSpeed = 15 + power * 12 + comboPower * 3;
 
-            // Direction toward truck opening with some arc
+            // Direction toward truck opening
             const velocity = new CANNON.Vec3(
-                (Math.random() - 0.5) * 2,
-                3 + power * 4,
+                (Math.random() - 0.5) * 3,
+                4 + power * 5,
                 -baseSpeed
             );
 
@@ -966,34 +1719,57 @@
                 lifetime: 0
             });
 
-            // Play throw sound
-            playBeatSound(150 + power * 100, 'sawtooth', 0.1);
+            // Play throw sound - more intense with combo
+            const soundFreq = 150 + power * 100 + comboPower * 50;
+            playBeatSound(soundFreq, 'sawtooth', 0.1);
         }
 
-        // Break a package into pieces
+        // Break a package into pieces - EXPLOSION!
         function breakPackage(packageData) {
             if (packageData.broken) return;
             packageData.broken = true;
 
             const pos = packageData.mesh.position.clone();
-            const color = packageData.mesh.children[0].material.color;
+            const color = packageData.mesh.children[0].material.color.clone();
+
+            // More particles with higher combo
+            const particleCount = 15 + gameState.comboPower * 10;
+            const explosionForce = 5 + gameState.comboPower * 3;
 
             // Create particle explosion
-            for (let i = 0; i < 15; i++) {
-                const particleGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            for (let i = 0; i < particleCount; i++) {
+                // Varied particle sizes
+                const size = 0.05 + Math.random() * 0.15;
+                const particleGeometry = new THREE.BoxGeometry(size, size, size);
+
+                // Slight color variation
+                const particleColor = color.clone();
+                particleColor.offsetHSL(Math.random() * 0.1 - 0.05, 0, Math.random() * 0.2 - 0.1);
+
                 const particleMaterial = new THREE.MeshBasicMaterial({
-                    color: color,
+                    color: particleColor,
                     transparent: true,
                     opacity: 1
                 });
                 const particle = new THREE.Mesh(particleGeometry, particleMaterial);
                 particle.position.copy(pos);
+                particle.position.add(new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3,
+                    (Math.random() - 0.5) * 0.3
+                ));
                 particle.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 5,
-                    Math.random() * 5,
-                    (Math.random() - 0.5) * 5
+                    (Math.random() - 0.5) * explosionForce * 2,
+                    Math.random() * explosionForce * 1.5,
+                    (Math.random() - 0.5) * explosionForce * 2
+                );
+                particle.rotationSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 10,
+                    (Math.random() - 0.5) * 10
                 );
                 particle.lifetime = 0;
+                particle.maxLifetime = 0.8 + Math.random() * 0.4;
                 scene.add(particle);
                 particles.push(particle);
             }
@@ -1001,18 +1777,25 @@
             // Hide original mesh
             packageData.mesh.visible = false;
 
-            // Update score
+            // Update score - more points with combo
             gameState.brokenPackages++;
-            gameState.score += 100 * gameState.multiplier;
+            const breakPoints = 100 * gameState.multiplier * gameState.comboPower;
+            gameState.score += breakPoints;
             elements.brokenValue.textContent = gameState.brokenPackages;
             updateScoreDisplay();
 
             // Show feedback
-            showFeedback('CASSE!', 'break', window.innerWidth / 2, window.innerHeight / 2 - 100);
+            showFeedback(`BOOM! +${breakPoints}`, 'break', window.innerWidth / 2, window.innerHeight / 2 - 100);
 
-            // Play break sound
-            playBeatSound(100, 'sawtooth', 0.2);
-            playBeatSound(80, 'square', 0.3);
+            // Play break sound - more epic with combo
+            const basePitch = 100 - gameState.comboPower * 10;
+            playBeatSound(basePitch, 'sawtooth', 0.2 + gameState.comboPower * 0.1);
+            playBeatSound(basePitch - 20, 'square', 0.3);
+
+            if (gameState.comboPower >= 3) {
+                // Extra explosion sounds for high combo
+                playBeatSound(50, 'sine', 0.4);
+            }
         }
 
         // Show feedback text
@@ -1038,12 +1821,7 @@
             note.dataset.type = type;
             note.style.right = '-70px';
 
-            let keyText = '';
-            switch(type) {
-                case 'cube': keyText = 'A'; break;
-                case 'sphere': keyText = 'P'; break;
-                case 'pizza': '_'; break;
-            }
+            let keyText = getKeyDisplayName(keyBindings[type]);
             note.textContent = keyText;
 
             elements.rhythmBar.appendChild(note);
@@ -1059,30 +1837,71 @@
 
         // Update beat notes positions
         function updateBeatNotes(deltaTime) {
-            const speed = 300; // pixels per second
-            const hitZone = 300; // center of bar
-            const hitWindow = 50;
-            const goodWindow = 80;
+            const speed = 300;
+            const hitZone = 300;
             const okWindow = 120;
 
-            beatNotes.forEach((note, index) => {
-                if (note.hit) return;
+            for (let i = beatNotes.length - 1; i >= 0; i--) {
+                const note = beatNotes[i];
+                if (note.hit) continue;
 
                 note.position += speed * deltaTime;
                 note.element.style.right = (-70 + note.position) + 'px';
 
+                // Ultimate mode - auto hit
+                if (gameState.ultimateActive) {
+                    const distance = Math.abs(note.position - hitZone);
+                    if (distance < 30) {
+                        autoHitNote(note, i);
+                        continue;
+                    }
+                }
+
                 // Check if note passed without being hit
                 if (note.position > hitZone + okWindow + 30) {
                     note.element.remove();
-                    beatNotes.splice(index, 1);
+                    beatNotes.splice(i, 1);
 
                     // Miss!
                     gameState.combo = 0;
+                    gameState.perfectStreak = 0;
                     gameState.multiplier = 1;
+                    gameState.comboPower = 1;
                     updateComboDisplay();
+                    updatePerfectStreak();
                     showFeedback('RATE!', 'miss', window.innerWidth / 2, window.innerHeight - 250);
                 }
-            });
+            }
+        }
+
+        // Auto-hit note during ultimate
+        function autoHitNote(note, index) {
+            note.hit = true;
+            note.element.classList.add('hit');
+            gameState.hitNotes++;
+
+            // Always perfect during ultimate
+            gameState.combo++;
+            if (gameState.combo > gameState.maxCombo) {
+                gameState.maxCombo = gameState.combo;
+            }
+            gameState.multiplier = Math.min(8, 1 + Math.floor(gameState.combo / 5));
+            gameState.comboPower = Math.min(4, 1 + Math.floor(gameState.combo / 10));
+
+            const points = 50 * gameState.multiplier;
+            gameState.score += points;
+            updateScoreDisplay();
+            updateComboDisplay();
+
+            showFeedback('AUTO!', 'ultimate', window.innerWidth / 2, window.innerHeight - 250);
+            launchPackage(note.type);
+            playBeatSound(600, 'sine', 0.1);
+
+            setTimeout(() => {
+                note.element.remove();
+                const idx = beatNotes.indexOf(note);
+                if (idx > -1) beatNotes.splice(idx, 1);
+            }, 300);
         }
 
         // Check if a key press hits a note
@@ -1106,11 +1925,13 @@
                     let points = 0;
                     let feedback = '';
                     let feedbackType = '';
+                    let isPerfect = false;
 
                     if (distance < hitWindow) {
                         points = 50;
                         feedback = 'PARFAIT!';
                         feedbackType = 'perfect';
+                        isPerfect = true;
                         playBeatSound(600, 'sine', 0.1);
                     } else if (distance < goodWindow) {
                         points = 30;
@@ -1129,7 +1950,29 @@
                     if (gameState.combo > gameState.maxCombo) {
                         gameState.maxCombo = gameState.combo;
                     }
-                    gameState.multiplier = Math.min(4, 1 + Math.floor(gameState.combo / 5));
+
+                    // Multiplier (up to 8x)
+                    gameState.multiplier = Math.min(8, 1 + Math.floor(gameState.combo / 5));
+
+                    // Combo power for throw strength (up to 4x)
+                    gameState.comboPower = Math.min(4, 1 + Math.floor(gameState.combo / 10));
+
+                    // Perfect streak for ultimate
+                    if (isPerfect) {
+                        gameState.perfectStreak++;
+                        if (gameState.perfectStreak >= ULTIMATE_CHARGE_REQUIRED && gameState.ultimateCharge < 100) {
+                            gameState.ultimateCharge = 100;
+                        } else if (gameState.ultimateCharge < 100) {
+                            gameState.ultimateCharge = Math.min(100, (gameState.perfectStreak / ULTIMATE_CHARGE_REQUIRED) * 100);
+                        }
+                    } else {
+                        gameState.perfectStreak = 0;
+                        if (!gameState.ultimateActive) {
+                            gameState.ultimateCharge = 0;
+                        }
+                    }
+                    updatePerfectStreak();
+                    updateUltimateBar();
 
                     // Add score
                     gameState.score += points * gameState.multiplier;
@@ -1137,7 +1980,7 @@
                     updateComboDisplay();
 
                     // Show feedback
-                    showFeedback(feedback, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
+                    showFeedback(feedback + ` +${points * gameState.multiplier}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
 
                     // Launch the package
                     launchPackage(type);
@@ -1152,7 +1995,6 @@
                 }
             }
 
-            // Wrong timing or wrong type
             return false;
         }
 
@@ -1165,37 +2007,144 @@
         function updateComboDisplay() {
             elements.comboValue.textContent = gameState.combo;
             elements.multValue.textContent = gameState.multiplier;
+
+            // Update combo meter visual
+            elements.comboMeter.className = 'combo-meter';
+            if (gameState.comboPower >= 4) {
+                elements.comboMeter.classList.add('fire-4');
+            } else if (gameState.comboPower >= 3) {
+                elements.comboMeter.classList.add('fire-3');
+            } else if (gameState.comboPower >= 2) {
+                elements.comboMeter.classList.add('fire-2');
+            } else if (gameState.combo >= 5) {
+                elements.comboMeter.classList.add('fire-1');
+            }
+        }
+
+        // Update perfect streak display
+        function updatePerfectStreak() {
+            elements.streakValue.textContent = gameState.perfectStreak;
+            if (gameState.perfectStreak >= 3) {
+                elements.perfectStreak.classList.add('visible');
+            } else {
+                elements.perfectStreak.classList.remove('visible');
+            }
+        }
+
+        // Update ultimate bar
+        function updateUltimateBar() {
+            elements.ultimateFill.style.height = gameState.ultimateCharge + '%';
+
+            if (gameState.ultimateActive) {
+                elements.ultimateBar.classList.remove('ready');
+                elements.ultimateBar.classList.add('active');
+                elements.ultimateKey.classList.remove('visible');
+                elements.ultimateOverlay.classList.add('active');
+            } else if (gameState.ultimateCharge >= 100) {
+                elements.ultimateBar.classList.add('ready');
+                elements.ultimateBar.classList.remove('active');
+                elements.ultimateKey.classList.add('visible');
+                elements.ultimateOverlay.classList.remove('active');
+            } else {
+                elements.ultimateBar.classList.remove('ready', 'active');
+                elements.ultimateKey.classList.remove('visible');
+                elements.ultimateOverlay.classList.remove('active');
+            }
+        }
+
+        // Activate ultimate
+        function activateUltimate() {
+            if (gameState.ultimateCharge < 100 || gameState.ultimateActive) return;
+
+            gameState.ultimateActive = true;
+            gameState.ultimateTimer = ULTIMATE_DURATION;
+            gameState.ultimatesUsed++;
+            gameState.ultimateCharge = 100;
+
+            updateUltimateBar();
+            showFeedback('ULTIMATE ACTIVE!', 'ultimate', window.innerWidth / 2, window.innerHeight / 2);
+            playUltimateSound();
+        }
+
+        // Update ultimate timer
+        function updateUltimate(deltaTime) {
+            if (!gameState.ultimateActive) return;
+
+            gameState.ultimateTimer -= deltaTime * 1000;
+            gameState.ultimateCharge = (gameState.ultimateTimer / ULTIMATE_DURATION) * 100;
+            updateUltimateBar();
+
+            if (gameState.ultimateTimer <= 0) {
+                gameState.ultimateActive = false;
+                gameState.ultimateCharge = 0;
+                gameState.perfectStreak = 0;
+                updateUltimateBar();
+                updatePerfectStreak();
+                showFeedback('ULTIMATE TERMINE', 'ok', window.innerWidth / 2, window.innerHeight / 2);
+            }
         }
 
         // Handle keyboard input
         function handleKeyDown(e) {
-            if (!gameState.isPlaying) return;
-
-            const key = e.key.toLowerCase();
-            let type = null;
-
-            switch(key) {
-                case 'a':
-                    type = 'cube';
-                    elements.keyA.classList.add('active');
-                    break;
-                case 'p':
-                    type = 'sphere';
-                    elements.keyP.classList.add('active');
-                    break;
-                case ' ':
-                    e.preventDefault();
-                    type = 'pizza';
-                    elements.keySpace.classList.add('active');
-                    break;
+            // Key binding mode
+            if (listeningForKey) {
+                handleKeyBinding(e);
+                return;
             }
 
-            if (type) {
+            const key = e.key.toLowerCase();
+
+            // Pause handling
+            if (key === 'escape') {
+                if (gameState.isPlaying && !gameState.isPaused) {
+                    pauseGame();
+                } else if (gameState.isPaused) {
+                    resumeGame();
+                }
+                return;
+            }
+
+            if (!gameState.isPlaying || gameState.isPaused) return;
+
+            // Ultimate activation
+            if (key === keyBindings.ultimate) {
+                activateUltimate();
+                return;
+            }
+
+            // Package controls
+            let type = null;
+            let keyElement = null;
+
+            if (key === keyBindings.cube) {
+                type = 'cube';
+                keyElement = elements.keyA;
+            } else if (key === keyBindings.sphere) {
+                type = 'sphere';
+                keyElement = elements.keyP;
+            } else if (key === keyBindings.pizza) {
+                e.preventDefault();
+                type = 'pizza';
+                keyElement = elements.keySpace;
+            }
+
+            if (keyElement) {
+                keyElement.classList.add('active');
+            }
+
+            if (type && !gameState.ultimateActive) {
                 if (!checkNoteHit(type)) {
                     // Wrong timing - penalty
                     gameState.combo = 0;
+                    gameState.perfectStreak = 0;
                     gameState.multiplier = 1;
+                    gameState.comboPower = 1;
+                    if (!gameState.ultimateActive) {
+                        gameState.ultimateCharge = 0;
+                    }
                     updateComboDisplay();
+                    updatePerfectStreak();
+                    updateUltimateBar();
                     showFeedback('RATE!', 'miss', window.innerWidth / 2, window.innerHeight - 250);
                     playBeatSound(100, 'square', 0.1);
                 }
@@ -1204,16 +2153,13 @@
 
         function handleKeyUp(e) {
             const key = e.key.toLowerCase();
-            switch(key) {
-                case 'a':
-                    elements.keyA.classList.remove('active');
-                    break;
-                case 'p':
-                    elements.keyP.classList.remove('active');
-                    break;
-                case ' ':
-                    elements.keySpace.classList.remove('active');
-                    break;
+
+            if (key === keyBindings.cube) {
+                elements.keyA.classList.remove('active');
+            } else if (key === keyBindings.sphere) {
+                elements.keyP.classList.remove('active');
+            } else if (key === keyBindings.pizza) {
+                elements.keySpace.classList.remove('active');
             }
         }
 
@@ -1222,6 +2168,20 @@
             const normalizedY = 1 - (e.clientY / window.innerHeight);
             gameState.power = Math.max(0.2, Math.min(1, normalizedY));
             elements.powerFill.style.height = (gameState.power * 100) + '%';
+        }
+
+        // Pause game
+        function pauseGame() {
+            gameState.isPaused = true;
+            elements.pauseScreen.style.display = 'flex';
+        }
+
+        // Resume game
+        function resumeGame() {
+            gameState.isPaused = false;
+            elements.pauseScreen.style.display = 'none';
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
         }
 
         // Window resize handler
@@ -1235,7 +2195,8 @@
         function updatePhysics(deltaTime) {
             world.step(1 / 60, deltaTime, 3);
 
-            packages.forEach((pkg, index) => {
+            for (let i = packages.length - 1; i >= 0; i--) {
+                const pkg = packages[i];
                 pkg.mesh.position.copy(pkg.body.position);
                 pkg.mesh.quaternion.copy(pkg.body.quaternion);
                 pkg.lifetime += deltaTime;
@@ -1244,32 +2205,43 @@
                 if (pkg.lifetime > 10) {
                     scene.remove(pkg.mesh);
                     world.removeBody(pkg.body);
-                    packages.splice(index, 1);
+                    packages.splice(i, 1);
                 }
-            });
+            }
 
             // Update particles
-            particles.forEach((particle, index) => {
-                particle.velocity.y -= 15 * deltaTime;
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const particle = particles[i];
+                particle.velocity.y -= 20 * deltaTime;
                 particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+                particle.rotation.x += particle.rotationSpeed.x * deltaTime;
+                particle.rotation.y += particle.rotationSpeed.y * deltaTime;
+                particle.rotation.z += particle.rotationSpeed.z * deltaTime;
                 particle.lifetime += deltaTime;
-                particle.material.opacity = 1 - particle.lifetime;
+                particle.material.opacity = 1 - (particle.lifetime / particle.maxLifetime);
 
-                if (particle.lifetime > 1) {
+                if (particle.lifetime > particle.maxLifetime) {
                     scene.remove(particle);
-                    particles.splice(index, 1);
+                    particles.splice(i, 1);
                 }
-            });
+            }
+        }
+
+        // Update timer display
+        function updateTimer() {
+            const remaining = Math.max(0, gameDuration - gameTime);
+            const minutes = Math.floor(remaining / 60000);
+            const seconds = Math.floor((remaining % 60000) / 1000);
+            elements.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
         }
 
         // Spawn beat notes
         let lastNoteSpawn = 0;
         function spawnBeatNotes(time) {
-            const spawnInterval = 60000 / gameState.bpm / 2; // Spawn every half beat
+            const spawnInterval = 60000 / gameState.bpm / 2;
 
             if (time - lastNoteSpawn > spawnInterval) {
-                // Randomly decide to spawn a note
-                if (Math.random() > 0.3) {
+                if (Math.random() > 0.25) {
                     createBeatNote();
                 }
                 lastNoteSpawn = time;
@@ -1283,12 +2255,16 @@
 
         function gameLoop(time) {
             if (!gameState.isPlaying) return;
+            if (gameState.isPaused) return;
 
             requestAnimationFrame(gameLoop);
 
             const deltaTime = Math.min((time - lastTime) / 1000, 0.1);
             lastTime = time;
             gameTime += deltaTime * 1000;
+
+            // Update timer
+            updateTimer();
 
             // Check game over
             if (gameTime >= gameDuration) {
@@ -1301,6 +2277,9 @@
 
             // Update beat notes
             updateBeatNotes(deltaTime);
+
+            // Update ultimate
+            updateUltimate(deltaTime);
 
             // Update physics
             updatePhysics(deltaTime);
@@ -1322,10 +2301,17 @@
             gameState.combo = 0;
             gameState.maxCombo = 0;
             gameState.multiplier = 1;
+            gameState.comboPower = 1;
             gameState.brokenPackages = 0;
             gameState.totalNotes = 0;
             gameState.hitNotes = 0;
+            gameState.perfectStreak = 0;
+            gameState.ultimateCharge = 0;
+            gameState.ultimateActive = false;
+            gameState.ultimateTimer = 0;
+            gameState.ultimatesUsed = 0;
             gameState.isPlaying = true;
+            gameState.isPaused = false;
             gameTime = 0;
             lastNoteSpawn = 0;
 
@@ -1343,11 +2329,14 @@
             // Update UI
             updateScoreDisplay();
             updateComboDisplay();
+            updatePerfectStreak();
+            updateUltimateBar();
             elements.brokenValue.textContent = '0';
 
             // Hide screens
             elements.startScreen.classList.add('hidden');
             elements.gameOverScreen.style.display = 'none';
+            elements.pauseScreen.style.display = 'none';
 
             // Initialize audio on user interaction
             if (!audioContext) {
@@ -1356,9 +2345,6 @@
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
-
-            // Lock pointer for better aiming feel
-            // elements.container.requestPointerLock();
 
             // Start game loop
             lastTime = performance.now();
@@ -1374,24 +2360,36 @@
             elements.finalScore.textContent = gameState.score.toLocaleString();
             elements.statBroken.textContent = gameState.brokenPackages;
             elements.statCombo.textContent = gameState.maxCombo;
+            elements.statUltimates.textContent = gameState.ultimatesUsed;
 
             const accuracy = gameState.totalNotes > 0
                 ? Math.round((gameState.hitNotes / gameState.totalNotes) * 100)
                 : 0;
             elements.statAccuracy.textContent = accuracy + '%';
+        }
 
-            // Exit pointer lock
-            document.exitPointerLock();
+        // Go to menu
+        function goToMenu() {
+            gameState.isPlaying = false;
+            gameState.isPaused = false;
+            elements.startScreen.classList.remove('hidden');
+            elements.gameOverScreen.style.display = 'none';
+            elements.pauseScreen.style.display = 'none';
         }
 
         // Initialize everything
         function init() {
             initScene();
             initPhysics();
+            setupKeyBindingListeners();
+            updateKeyDisplays();
 
             // Event listeners
             elements.startBtn.addEventListener('click', startGame);
-            elements.startBtn2.addEventListener('click', startGame);
+            elements.restartBtn.addEventListener('click', startGame);
+            elements.menuBtn.addEventListener('click', goToMenu);
+            elements.resumeBtn.addEventListener('click', resumeGame);
+            elements.quitBtn.addEventListener('click', goToMenu);
             document.addEventListener('keydown', handleKeyDown);
             document.addEventListener('keyup', handleKeyUp);
             document.addEventListener('mousemove', handleMouseMove);
