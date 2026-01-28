@@ -1905,6 +1905,14 @@
         }
 
         function loadTrailerFromUrl(url) {
+            // Check if running from file:// protocol (CORS will block local file loading)
+            if (window.location.protocol === 'file:') {
+                console.warn('Running from file:// protocol - GLB loading blocked by CORS. Using procedural trailer.');
+                console.info('Tip: Use a local server (e.g., "python -m http.server" or "npx serve") to load 3D models.');
+                useProceduralTrailer();
+                return;
+            }
+
             if (!THREE.GLTFLoader) {
                 console.warn('GLTFLoader missing, using procedural trailer.');
                 useProceduralTrailer();
@@ -1912,21 +1920,28 @@
             }
 
             if (!url) {
+                useProceduralTrailer();
                 return;
             }
 
+            console.log('Loading trailer model from:', url);
             const loader = new THREE.GLTFLoader();
             loader.load(
                 url,
                 (gltf) => {
                     try {
+                        console.log('Trailer model loaded successfully');
                         applyTrailerModel(gltf.scene);
                     } catch (error) {
                         console.warn('Failed to initialize trailer model, using procedural trailer.', error);
                         useProceduralTrailer();
                     }
                 },
-                undefined,
+                (progress) => {
+                    if (progress.total > 0) {
+                        console.log('Loading trailer model:', Math.round((progress.loaded / progress.total) * 100) + '%');
+                    }
+                },
                 (error) => {
                     console.warn('Failed to load trailer model, using procedural trailer.', error);
                     useProceduralTrailer();
