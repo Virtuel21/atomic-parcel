@@ -1609,7 +1609,7 @@
                 new THREE.BoxGeometry(26, 1, 10),
                 new THREE.MeshStandardMaterial({ color: 0x3f4148, roughness: 0.8 })
             );
-            dockPlatform.position.set(0, 0.5, 8);
+            dockPlatform.position.set(0, 0.5, 4);
             dockPlatform.receiveShadow = true;
             dockPlatform.castShadow = true;
             dockGroup.add(dockPlatform);
@@ -1618,7 +1618,7 @@
             const stripeMaterial = new THREE.MeshStandardMaterial({ color: 0xf5b000, roughness: 0.6 });
             for (let i = -11; i <= 11; i += 2.2) {
                 const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.05, 4), stripeMaterial);
-                stripe.position.set(i, 1.02, 11);
+                stripe.position.set(i, 1.02, 6.2);
                 dockGroup.add(stripe);
             }
 
@@ -1628,7 +1628,7 @@
                 roughness: 0.75
             });
             const facade = new THREE.Mesh(new THREE.BoxGeometry(30, 10, 6), wallMaterial);
-            facade.position.set(0, 5, 12);
+            facade.position.set(0, 5, 7);
             facade.castShadow = true;
             facade.receiveShadow = true;
             dockGroup.add(facade);
@@ -1636,11 +1636,11 @@
             const bayMaterial = new THREE.MeshStandardMaterial({ color: 0x2a2b31, roughness: 0.5 });
             for (let i = -8; i <= 8; i += 8) {
                 const bay = new THREE.Mesh(new THREE.BoxGeometry(5, 4.5, 0.4), bayMaterial);
-                bay.position.set(i, 2.5, 9.2);
+                bay.position.set(i, 2.5, 5.2);
                 dockGroup.add(bay);
 
                 const bumper = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.8, 0.6), new THREE.MeshStandardMaterial({ color: 0x1f2024 }));
-                bumper.position.set(i, 1, 9.4);
+                bumper.position.set(i, 1, 5.4);
                 dockGroup.add(bumper);
             }
 
@@ -1648,19 +1648,35 @@
                 new THREE.BoxGeometry(32, 0.4, 4),
                 new THREE.MeshStandardMaterial({ color: 0x2f3138, roughness: 0.6, metalness: 0.2 })
             );
-            canopy.position.set(0, 9.3, 10.5);
+            canopy.position.set(0, 9.3, 6.5);
             canopy.castShadow = true;
             dockGroup.add(canopy);
+
+            // Dock props (crates + pallets)
+            const crateMaterial = new THREE.MeshStandardMaterial({ color: 0x8b6b4a, roughness: 0.9 });
+            const palletMaterial = new THREE.MeshStandardMaterial({ color: 0x6a4b33, roughness: 0.95 });
+            for (let i = 0; i < 6; i++) {
+                const pallet = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.2, 1), palletMaterial);
+                pallet.position.set(-8 + i * 3, 0.15, 2.5 + (i % 2) * 1.5);
+                pallet.castShadow = true;
+                pallet.receiveShadow = true;
+                dockGroup.add(pallet);
+
+                const crate = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.9, 0.9), crateMaterial);
+                crate.position.set(pallet.position.x + 0.1, 0.7, pallet.position.z);
+                crate.castShadow = true;
+                dockGroup.add(crate);
+            }
 
             // Side walls
             const sideWallGeometry = new THREE.BoxGeometry(0.6, 10, 14);
             const leftWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
-            leftWall.position.set(-15, 5, 10);
+            leftWall.position.set(-15, 5, 5);
             leftWall.receiveShadow = true;
             dockGroup.add(leftWall);
 
             const rightWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
-            rightWall.position.set(15, 5, 10);
+            rightWall.position.set(15, 5, 5);
             rightWall.receiveShadow = true;
             dockGroup.add(rightWall);
 
@@ -1670,13 +1686,13 @@
                 new THREE.MeshStandardMaterial({ color: 0x2a2c33, roughness: 0.95 })
             );
             road.rotation.x = -Math.PI / 2;
-            road.position.set(0, 0.02, -18);
+            road.position.set(0, 0.02, -12);
             dockGroup.add(road);
 
             const roadLineMaterial = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.4 });
             for (let i = -50; i <= 50; i += 12) {
                 const line = new THREE.Mesh(new THREE.BoxGeometry(4, 0.05, 0.6), roadLineMaterial);
-                line.position.set(i, 0.03, -18);
+                line.position.set(i, 0.03, -12);
                 dockGroup.add(line);
             }
 
@@ -1703,7 +1719,7 @@
                 canopy.castShadow = true;
                 tree.add(trunk, canopy);
 
-                tree.position.set(-28 + i * 6, 0, -35 - Math.random() * 8);
+                tree.position.set(-28 + i * 6, 0, -28 - Math.random() * 6);
                 scene.add(tree);
                 backgroundTrees.push(tree);
             }
@@ -1714,7 +1730,7 @@
             backgroundVehicles = [];
 
             const vehicleColors = [0x3b82f6, 0xf97316, 0x10b981, 0xef4444, 0xfacc15, 0x8b5cf6];
-            const lanePositions = [-16.5, -20.5];
+            const lanePositions = [-11.5, -13.5];
             const laneDirections = [1, -1];
 
             for (let laneIndex = 0; laneIndex < lanePositions.length; laneIndex++) {
