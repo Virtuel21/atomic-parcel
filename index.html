@@ -1309,6 +1309,13 @@
         };
         const TRUCK_CAPACITY = 28;
         const TRUCK_OVERFLOW_LIMIT = 6;
+        const CONVEYOR_CONFIG = {
+            startZ: 11.2,
+            endZ: 7.4,
+            y: 1.1,
+            laneWidth: 1.6,
+            lift: 0.6
+        };
 
         // DOM elements
         const elements = {
@@ -1375,6 +1382,7 @@
         let truck;
         let packages = [];
         let particles = [];
+        let conveyorBelt;
 
         // Cannon.js physics
         let world;
@@ -1623,6 +1631,41 @@
             rightWall.receiveShadow = true;
             scene.add(rightWall);
 
+            createConveyorBelt();
+        }
+
+        function createConveyorBelt() {
+            if (conveyorBelt) {
+                scene.remove(conveyorBelt);
+            }
+            conveyorBelt = new THREE.Group();
+
+            const beltBase = new THREE.Mesh(
+                new THREE.BoxGeometry(4.4, 0.4, 6.5),
+                new THREE.MeshStandardMaterial({ color: 0x2f2f3a, roughness: 0.8 })
+            );
+            beltBase.position.set(0, 0.55, 9.2);
+            beltBase.castShadow = true;
+            beltBase.receiveShadow = true;
+            conveyorBelt.add(beltBase);
+
+            const beltSurface = new THREE.Mesh(
+                new THREE.BoxGeometry(4.0, 0.08, 6.0),
+                new THREE.MeshStandardMaterial({ color: 0x3f3f4d, roughness: 0.6, metalness: 0.2 })
+            );
+            beltSurface.position.set(0, 0.74, 9.2);
+            beltSurface.receiveShadow = true;
+            conveyorBelt.add(beltSurface);
+
+            const guardMaterial = new THREE.MeshStandardMaterial({ color: 0x444455, roughness: 0.7 });
+            const guardLeft = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 6.1), guardMaterial);
+            guardLeft.position.set(-2.05, 0.9, 9.2);
+            conveyorBelt.add(guardLeft);
+            const guardRight = guardLeft.clone();
+            guardRight.position.x = 2.05;
+            conveyorBelt.add(guardRight);
+
+            scene.add(conveyorBelt);
         }
 
         function buildProceduralTrailer(targetGroup) {
@@ -2967,17 +3010,21 @@
         }
 
         function launchPackage(type) {
-            const variant = selectPackageVariant(type);
-            const mesh = createPackageMesh(variant);
+            launchPackageWithOptions(type);
+        }
+
+        function launchPackageWithOptions(type, { mesh = null, variant = null, position = null } = {}) {
+            const resolvedVariant = variant || selectPackageVariant(type);
+            const resolvedMesh = mesh || createPackageMesh(resolvedVariant);
 
             // Start position (from the dock)
-            const startPos = new THREE.Vector3(
-                (Math.random() - 0.5) * 1,
-                2,
-                8
-            );
-            mesh.position.copy(startPos);
-            scene.add(mesh);
+            const startPos = position
+                ? position.clone()
+                : new THREE.Vector3((Math.random() - 0.5) * 1, 2, 8);
+            resolvedMesh.position.copy(startPos);
+            if (!mesh) {
+                scene.add(resolvedMesh);
+            }
 
             // Calculate velocity based on power and combo
             const power = gameState.power;
@@ -2991,15 +3038,15 @@
                 -baseSpeed
             );
 
-            const body = createPackageBody(variant,
+            const body = createPackageBody(resolvedVariant,
                 new CANNON.Vec3(startPos.x, startPos.y, startPos.z),
                 velocity
             );
 
             packages.push({
-                mesh: mesh,
+                mesh: resolvedMesh,
                 body: body,
-                type: variant,
+                type: resolvedVariant,
                 broken: false,
                 lifetime: 0,
                 breakTime: 0
@@ -3008,6 +3055,57 @@
             // Play throw sound - more intense with combo
             const soundFreq = 150 + power * 100 + comboPower * 50;
             playBeatSound(soundFreq, 'sawtooth', 0.1);
+        }
+
+        function createConveyorPackage(note) {
+            if (!scene || !note) return;
+            const variant = selectPackageVariant(note.type);
+            const mesh = createPackageMesh(variant);
+            const laneX = (Math.random() - 0.5) * CONVEYOR_CONFIG.laneWidth;
+            mesh.position.set(laneX, CONVEYOR_CONFIG.y, CONVEYOR_CONFIG.startZ);
+            scene.add(mesh);
+            note.conveyorPackage = {
+                mesh,
+                variant,
+                laneX,
+                spin: (Math.random() - 0.5) * 0.8
+            };
+        }
+
+        function updateConveyorPackage(note, maxTravel, deltaTime) {
+            if (!note.conveyorPackage) return;
+            const progress = Math.max(0, Math.min(1, (note.position + 70) / maxTravel));
+            const zPos = CONVEYOR_CONFIG.startZ + (CONVEYOR_CONFIG.endZ - CONVEYOR_CONFIG.startZ) * progress;
+            note.conveyorPackage.mesh.position.set(note.conveyorPackage.laneX, CONVEYOR_CONFIG.y, zPos);
+            note.conveyorPackage.mesh.rotation.y += note.conveyorPackage.spin * deltaTime;
+        }
+
+        function detachConveyorPackage(note) {
+            if (!note || !note.conveyorPackage) return null;
+            const data = note.conveyorPackage;
+            note.conveyorPackage = null;
+            return data;
+        }
+
+        function removeConveyorPackage(note) {
+            if (!note || !note.conveyorPackage) return;
+            scene.remove(note.conveyorPackage.mesh);
+            note.conveyorPackage = null;
+        }
+
+        function launchPackageFromNote(note) {
+            const conveyorData = detachConveyorPackage(note);
+            if (conveyorData) {
+                const startPos = conveyorData.mesh.position.clone();
+                startPos.y += CONVEYOR_CONFIG.lift;
+                launchPackageWithOptions(note.type, {
+                    mesh: conveyorData.mesh,
+                    variant: conveyorData.variant,
+                    position: startPos
+                });
+                return;
+            }
+            launchPackage(note.type);
         }
 
         // Break a package into pieces - EXPLOSION!
@@ -3243,9 +3341,11 @@
                 element: note,
                 type: type,
                 position: -70,
-                hit: false
+                hit: false,
+                conveyorPackage: null
             });
 
+            createConveyorPackage(beatNotes[beatNotes.length - 1]);
             gameState.totalNotes++;
         }
 
@@ -3366,6 +3466,7 @@
             const speed = noteSpeed;
             const hitZone = 300;
             const okWindow = 120;
+            const maxTravel = hitZone + 70;
 
             for (let i = beatNotes.length - 1; i >= 0; i--) {
                 const note = beatNotes[i];
@@ -3373,6 +3474,7 @@
 
                 note.position += speed * deltaTime;
                 note.element.style.right = (-70 + note.position) + 'px';
+                updateConveyorPackage(note, maxTravel, deltaTime);
 
                 // Ultimate mode - auto hit
                 if (gameState.ultimateActive) {
@@ -3385,6 +3487,7 @@
 
                 // Check if note passed without being hit
                 if (note.position > hitZone + okWindow + 30) {
+                    removeConveyorPackage(note);
                     note.element.remove();
                     beatNotes.splice(i, 1);
 
@@ -3422,7 +3525,7 @@
             addUltimateCharge(1);
 
             showFeedback('AUTO!', 'ultimate', window.innerWidth / 2, window.innerHeight - 250);
-            launchPackage(note.type);
+            launchPackageFromNote(note);
             if (note.type === 'fragile') {
                 triggerFragileBonus();
             }
@@ -3508,7 +3611,7 @@
                     showFeedback(`${feedback} +${totalPoints}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
 
                     triggerFragileBonus();
-                    launchPackage('fragile');
+                    launchPackageFromNote(note);
 
                     setTimeout(() => {
                         note.element.remove();
@@ -3593,7 +3696,7 @@
                     showFeedback(`${feedback} +${totalPoints}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
 
                     triggerExpressBonus();
-                    launchPackage('express');
+                    launchPackageFromNote(note);
 
                     setTimeout(() => {
                         note.element.remove();
@@ -3699,7 +3802,7 @@
                     showFeedback(feedback + ` +${totalPoints}`, feedbackType, window.innerWidth / 2, window.innerHeight - 250);
 
                     // Launch the package
-                    launchPackage(type);
+                    launchPackageFromNote(note);
 
                     setTimeout(() => {
                         note.element.remove();
@@ -4214,7 +4317,10 @@
             beatDetector.prevBeatTime = 0;
 
             // Clear existing
-            beatNotes.forEach(n => n.element.remove());
+            beatNotes.forEach(n => {
+                removeConveyorPackage(n);
+                n.element.remove();
+            });
             beatNotes = [];
             packages.forEach(p => {
                 scene.remove(p.mesh);
