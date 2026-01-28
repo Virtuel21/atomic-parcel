@@ -1238,6 +1238,14 @@
         };
 
         const trailerModelUrl = 'low_poly_truck.glb';
+        const packageModelUrls = {
+            cat: 'cat.glb',
+            grandma: 'grandma.glb'
+        };
+        const packageModelTargetSizes = {
+            cat: new THREE.Vector3(0.7, 0.35, 0.3),
+            grandma: new THREE.Vector3(0.4, 0.75, 0.4)
+        };
 
         // Game state
         const gameState = {
@@ -1383,6 +1391,7 @@
         let packages = [];
         let particles = [];
         let conveyorBelt;
+        const packageModelCache = new Map();
 
         // Cannon.js physics
         let world;
@@ -1588,6 +1597,7 @@
             // Create environment
             createWarehouseEnvironment();
             createTruck();
+            preloadPackageModels();
 
             // Handle window resize
             window.addEventListener('resize', onWindowResize);
@@ -1958,6 +1968,89 @@
                     useProceduralTrailer();
                 }
             );
+        }
+
+        function preloadPackageModels() {
+            if (!THREE.GLTFLoader) {
+                console.warn('GLTFLoader missing, package models disabled.');
+                return;
+            }
+
+            const loader = new THREE.GLTFLoader();
+            Object.entries(packageModelUrls).forEach(([type, url]) => {
+                if (!url) return;
+                loader.load(
+                    url,
+                    (gltf) => {
+                        const model = gltf.scene;
+                        model.traverse((child) => {
+                            if (child.isMesh) {
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
+                        model.updateWorldMatrix(true, true);
+                        const boundingBox = new THREE.Box3().setFromObject(model);
+                        const size = new THREE.Vector3();
+                        boundingBox.getSize(size);
+                        packageModelCache.set(type, { model, size });
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn(`Failed to load ${type} package model.`, error);
+                    }
+                );
+            });
+        }
+
+        function clonePackageModel(type, scaleMultiplier) {
+            const cached = packageModelCache.get(type);
+            if (!cached || !cached.size.x || !cached.size.y || !cached.size.z) {
+                return null;
+            }
+
+            const targetSize = packageModelTargetSizes[type];
+            if (!targetSize) {
+                return null;
+            }
+
+            const model = cached.model.clone(true);
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = child.material.clone();
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            const scale = Math.min(
+                targetSize.x / cached.size.x,
+                targetSize.y / cached.size.y,
+                targetSize.z / cached.size.z
+            ) * scaleMultiplier;
+            model.scale.setScalar(scale);
+
+            model.updateWorldMatrix(true, true);
+            const boundingBox = new THREE.Box3().setFromObject(model);
+            const center = new THREE.Vector3();
+            boundingBox.getCenter(center);
+            model.position.sub(center);
+            boundingBox.setFromObject(model);
+            model.position.y -= boundingBox.min.y;
+
+            return model;
+        }
+
+        function applyComboGlow(group, glowColor, glowIntensity) {
+            group.traverse((child) => {
+                if (!child.isMesh || !child.material) return;
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                materials.forEach((material) => {
+                    if (!material || material.emissive === undefined) return;
+                    material.emissive = new THREE.Color(glowColor);
+                    material.emissiveIntensity = glowIntensity;
+                });
+            });
         }
 
         // Create the truck/trailer - realistic semi-trailer interior
@@ -2614,9 +2707,14 @@
 
             // Scale based on combo power
             const scale = 1 + (gameState.comboPower - 1) * 0.3;
+            const modelMesh = clonePackageModel(type, scale);
+            if (modelMesh) {
+                group.add(modelMesh);
+            }
 
             switch(type) {
                 case 'cube':
+                    if (modelMesh) break;
                     geometry = new THREE.BoxGeometry(0.5 * scale, 0.5 * scale, 0.5 * scale);
                     material = new THREE.MeshStandardMaterial({
                         color: 0x4a90d9,
@@ -2638,6 +2736,7 @@
                     break;
 
                 case 'sphere':
+                    if (modelMesh) break;
                     geometry = new THREE.SphereGeometry(0.3 * scale, 16, 16);
                     material = new THREE.MeshStandardMaterial({
                         color: 0xd94a4a,
@@ -2660,6 +2759,7 @@
                     break;
 
                 case 'pizza':
+                    if (modelMesh) break;
                     // Flat box for pizza
                     geometry = new THREE.BoxGeometry(0.7 * scale, 0.15 * scale, 0.7 * scale);
                     material = new THREE.MeshStandardMaterial({
@@ -2680,6 +2780,7 @@
                     break;
 
                 case 'cereal':
+                    if (modelMesh) break;
                     geometry = new THREE.BoxGeometry(0.35 * scale, 0.7 * scale, 0.2 * scale);
                     material = new THREE.MeshStandardMaterial({
                         color: 0xffcc66,
@@ -2699,6 +2800,7 @@
                     break;
 
                 case 'plant':
+                    if (modelMesh) break;
                     geometry = new THREE.CylinderGeometry(0.18 * scale, 0.25 * scale, 0.35 * scale, 16);
                     material = new THREE.MeshStandardMaterial({
                         color: 0x7a4a2b,
@@ -2724,6 +2826,7 @@
                     break;
 
                 case 'suitcase':
+                    if (modelMesh) break;
                     geometry = new THREE.BoxGeometry(0.55 * scale, 0.35 * scale, 0.25 * scale);
                     material = new THREE.MeshStandardMaterial({
                         color: 0x3f4c6b,
@@ -2742,6 +2845,7 @@
                     break;
 
                 case 'duffel':
+                    if (modelMesh) break;
                     geometry = new THREE.CylinderGeometry(0.25 * scale, 0.25 * scale, 0.5 * scale, 18);
                     material = new THREE.MeshStandardMaterial({
                         color: 0x2f6f6f,
@@ -2754,6 +2858,7 @@
                     break;
 
                 case 'table':
+                    if (modelMesh) break;
                     geometry = new THREE.BoxGeometry(0.7 * scale, 0.08 * scale, 0.4 * scale);
                     material = new THREE.MeshStandardMaterial({
                         color: 0xb07a3d,
@@ -2783,6 +2888,7 @@
                     break;
 
                 case 'cat':
+                    if (modelMesh) break;
                     const catBody = new THREE.Mesh(
                         new THREE.BoxGeometry(0.5 * scale, 0.25 * scale, 0.2 * scale),
                         new THREE.MeshStandardMaterial({ color: 0x8c6f5a, roughness: 0.6 })
@@ -2816,6 +2922,7 @@
                     break;
 
                 case 'grandma':
+                    if (modelMesh) break;
                     const dress = new THREE.Mesh(
                         new THREE.CylinderGeometry(0.18 * scale, 0.28 * scale, 0.55 * scale, 6),
                         new THREE.MeshStandardMaterial({ color: 0x7d6fd3, roughness: 0.6 })
@@ -2846,6 +2953,7 @@
                     break;
 
                 case 'express':
+                    if (modelMesh) break;
                     geometry = new THREE.BoxGeometry(0.5 * scale, 0.3 * scale, 0.4 * scale);
                     material = new THREE.MeshStandardMaterial({
                         color: 0x00cc88,
@@ -2864,6 +2972,7 @@
                     break;
 
                 case 'fragile':
+                    if (modelMesh) break;
                     geometry = new THREE.BoxGeometry(0.9 * scale, 0.6 * scale, 0.9 * scale);
                     material = new THREE.MeshStandardMaterial({
                         color: 0xf7e6d0,
@@ -2897,8 +3006,7 @@
             if (gameState.comboPower >= 2) {
                 const glowColor = gameState.comboPower >= 3 ? 0xff0066 : 0xff6600;
                 const glowIntensity = (gameState.comboPower - 1) * 0.3;
-                group.children[0].material.emissive = new THREE.Color(glowColor);
-                group.children[0].material.emissiveIntensity = glowIntensity;
+                applyComboGlow(group, glowColor, glowIntensity);
             }
 
             return group;
