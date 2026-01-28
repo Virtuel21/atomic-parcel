@@ -1865,30 +1865,32 @@
                 }
             });
 
+            trailerModel.updateWorldMatrix(true, true);
             const boundingBox = new THREE.Box3().setFromObject(trailerModel);
             const size = new THREE.Vector3();
             boundingBox.getSize(size);
 
-            if (!size.x || !size.y || !size.z) {
-                throw new Error('Trailer model has invalid bounds');
+            if (size.x && size.y && size.z) {
+                const targetSize = new THREE.Vector3(
+                    trailerDimensions.width,
+                    trailerDimensions.height,
+                    trailerDimensions.length
+                );
+                const scale = Math.min(
+                    targetSize.x / size.x,
+                    targetSize.y / size.y,
+                    targetSize.z / size.z
+                );
+                trailerModel.scale.setScalar(scale);
+
+                boundingBox.setFromObject(trailerModel);
+                const center = new THREE.Vector3();
+                boundingBox.getCenter(center);
+                trailerModel.position.sub(center);
+            } else {
+                console.warn('Trailer model has invalid bounds, using default placement.');
             }
 
-            const targetSize = new THREE.Vector3(
-                trailerDimensions.width,
-                trailerDimensions.height,
-                trailerDimensions.length
-            );
-            const scale = Math.min(
-                targetSize.x / size.x,
-                targetSize.y / size.y,
-                targetSize.z / size.z
-            );
-            trailerModel.scale.setScalar(scale);
-
-            boundingBox.setFromObject(trailerModel);
-            const center = new THREE.Vector3();
-            boundingBox.getCenter(center);
-            trailerModel.position.sub(center);
             trailerModel.position.y += trailerDimensions.height / 2 + 0.8;
             trailerModel.position.z += -trailerDimensions.length / 2 + 2;
 
