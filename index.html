@@ -1227,16 +1227,29 @@
         </div>
     </div>
 
-    <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Three.js with ES6 modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
     <!-- Cannon.js for physics -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
-    <script>
+    <script type="module">
         // ============================================
         // ATOMIC PARCEL - Rhythm Delivery Chaos
         // ============================================
+
+        // Import Three.js and GLTFLoader as ES6 modules
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // Make THREE globally available for compatibility
+        window.THREE = THREE;
 
         // Key bindings (configurable)
         const keyBindings = {
@@ -1913,19 +1926,13 @@
                 return;
             }
 
-            if (!THREE.GLTFLoader) {
-                console.warn('GLTFLoader missing, using procedural trailer.');
-                useProceduralTrailer();
-                return;
-            }
-
             if (!url) {
                 useProceduralTrailer();
                 return;
             }
 
             console.log('Loading trailer model from:', url);
-            const loader = new THREE.GLTFLoader();
+            const loader = new GLTFLoader();
             loader.load(
                 url,
                 (gltf) => {

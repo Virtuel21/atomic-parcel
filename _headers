@@ -1,0 +1,14 @@
+# Netlify headers configuration
+
+# GLB/GLTF 3D model files
+/*.glb
+  Content-Type: model/gltf-binary
+  Access-Control-Allow-Origin: *
+
+/*.gltf
+  Content-Type: model/gltf+json
+  Access-Control-Allow-Origin: *
+
+# Audio files
+/*.mp3
+  Content-Type: audio/mpeg
