@@ -74,35 +74,60 @@
             position: absolute;
             top: 20px;
             right: 20px;
-            width: 220px;
+            width: 240px;
             text-align: right;
-            color: #fff;
+            color: #3b2b17;
             text-transform: uppercase;
             letter-spacing: 1px;
+            background: linear-gradient(135deg, #e5c097, #c89b63);
+            border-radius: 12px;
+            border: 2px solid #8b5a2b;
+            padding: 12px 14px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
+        }
+
+        #performance-meter::before {
+            content: 'TRACKING';
+            position: absolute;
+            top: -12px;
+            right: 16px;
+            padding: 2px 8px;
+            font-size: 0.65rem;
+            color: #8b5a2b;
+            background: #f5e2c8;
+            border: 1px solid #b0804a;
+            border-radius: 999px;
         }
 
         #performance-meter .performance-label {
-            font-size: 0.9rem;
-            opacity: 0.8;
+            font-size: 0.85rem;
+            opacity: 0.9;
+            font-weight: 600;
         }
 
         #performance-meter .performance-status {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
             margin-top: 4px;
         }
 
         #performance-meter .performance-percent {
-            font-size: 0.9rem;
-            opacity: 0.7;
+            font-size: 0.85rem;
+            opacity: 0.8;
         }
 
         #performance-bar {
-            margin-top: 6px;
-            height: 14px;
-            background: rgba(0, 0, 0, 0.55);
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-top: 8px;
+            height: 16px;
+            background: repeating-linear-gradient(
+                90deg,
+                rgba(0, 0, 0, 0.2),
+                rgba(0, 0, 0, 0.2) 10px,
+                rgba(0, 0, 0, 0.3) 10px,
+                rgba(0, 0, 0, 0.3) 20px
+            );
+            border-radius: 10px;
+            border: 1px solid rgba(59, 43, 23, 0.5);
             overflow: hidden;
             position: relative;
         }
@@ -110,16 +135,16 @@
         #performance-fill {
             height: 100%;
             width: 100%;
-            background: linear-gradient(90deg, #00ff88, #2dff64);
+            background: linear-gradient(90deg, #6bc96b, #3dbf8f);
             transition: width 0.2s ease, background 0.2s ease;
         }
 
         #performance-meter.warning #performance-fill {
-            background: linear-gradient(90deg, #ffd166, #ff9f1c);
+            background: linear-gradient(90deg, #f4d35e, #ee964b);
         }
 
         #performance-meter.danger #performance-fill {
-            background: linear-gradient(90deg, #ff595e, #ff0054);
+            background: linear-gradient(90deg, #ff7b7b, #ff4f4f);
             animation: dangerPulse 0.6s infinite alternate;
         }
 
@@ -811,39 +836,6 @@
             text-align: center;
         }
 
-        /* Power meter */
-        #power-meter {
-            position: absolute;
-            right: 30px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 30px;
-            height: 200px;
-            background: rgba(0, 0, 0, 0.7);
-            border-radius: 15px;
-            border: 2px solid #444;
-            overflow: hidden;
-        }
-
-        #power-fill {
-            position: absolute;
-            bottom: 0;
-            width: 100%;
-            background: linear-gradient(180deg, #ff0066, #ff6b35, #ffd700);
-            transition: height 0.05s;
-        }
-
-        #power-label {
-            position: absolute;
-            right: 70px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #fff;
-            font-size: 0.9rem;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-        }
-
         /* Ultimate bar */
         #ultimate-container {
             position: absolute;
@@ -947,7 +939,7 @@
         /* Broken packages counter */
         #broken-counter {
             position: absolute;
-            top: 20px;
+            top: 140px;
             right: 20px;
             background: rgba(255, 0, 102, 0.3);
             padding: 15px 25px;
@@ -1041,7 +1033,6 @@
             <div class="instructions">
                 <h3>Comment jouer</h3>
                 <p>Lancez les colis dans le camion en rythme avec la musique!</p>
-                <p><strong>Visez avec la souris</strong> - Plus vous visez haut, plus vous lancez fort!</p>
                 <p><strong>Timing:</strong> Appuyez quand la note atteint la ligne centrale</p>
                 <p><strong>Combo:</strong> Enchainez les hits pour augmenter votre puissance!</p>
                 <p><strong>Erreur:</strong> Une note ratée ou une mauvaise touche fait perdre des points. Si vous restez trop longtemps sous un taux de réussite minimal, c'est terminé.</p>
@@ -1154,7 +1145,7 @@
             <div id="score-display">0</div>
             <div id="fragile-multiplier">FRAGILE x3</div>
             <div id="performance-meter" class="safe">
-                <div class="performance-label">RYTHME</div>
+                <div class="performance-label">SUIVI COLIS</div>
                 <div id="performance-bar">
                     <div id="performance-fill"></div>
                 </div>
@@ -1192,12 +1183,6 @@
             </div>
             <div id="ultimate-key">E</div>
         </div>
-
-        <!-- Power meter -->
-        <div id="power-meter">
-            <div id="power-fill" style="height: 50%"></div>
-        </div>
-        <div id="power-label">PUISSANCE</div>
 
         <!-- Ultimate overlay -->
         <div id="ultimate-overlay"></div>
@@ -1274,8 +1259,7 @@
             bpm: 120,
             beatInterval: 500,
             lastBeatTime: 0,
-            mouseY: 0.5,
-            power: 0.5,
+            power: 0.7,
             comboPower: 1, // Multiplier for throw power based on combo
             fragileMultiplier: 1,
             fragileTimer: 0,
@@ -1342,7 +1326,6 @@
             multValue: document.getElementById('mult-value'),
             brokenValue: document.getElementById('broken-value'),
             rhythmBar: document.getElementById('rhythm-bar'),
-            powerFill: document.getElementById('power-fill'),
             keyA: document.getElementById('key-a'),
             keyP: document.getElementById('key-p'),
             keySpace: document.getElementById('key-space'),
@@ -2727,6 +2710,98 @@
                     group.add(duffel);
                     break;
 
+                case 'table':
+                    geometry = new THREE.BoxGeometry(0.7 * scale, 0.08 * scale, 0.4 * scale);
+                    material = new THREE.MeshStandardMaterial({
+                        color: 0xb07a3d,
+                        roughness: 0.7
+                    });
+                    const tableTop = new THREE.Mesh(geometry, material);
+                    tableTop.castShadow = true;
+                    tableTop.position.y = 0.18 * scale;
+                    group.add(tableTop);
+                    const legMaterial = new THREE.MeshStandardMaterial({
+                        color: 0x6f4a1f,
+                        roughness: 0.8
+                    });
+                    const legGeometry = new THREE.BoxGeometry(0.06 * scale, 0.2 * scale, 0.06 * scale);
+                    const legPositions = [
+                        [-0.3, 0.05, -0.15],
+                        [0.3, 0.05, -0.15],
+                        [-0.3, 0.05, 0.15],
+                        [0.3, 0.05, 0.15]
+                    ];
+                    legPositions.forEach(([x, y, z]) => {
+                        const leg = new THREE.Mesh(legGeometry, legMaterial);
+                        leg.position.set(x * scale, y * scale, z * scale);
+                        leg.castShadow = true;
+                        group.add(leg);
+                    });
+                    break;
+
+                case 'cat':
+                    const catBody = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.5 * scale, 0.25 * scale, 0.2 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0x8c6f5a, roughness: 0.6 })
+                    );
+                    catBody.castShadow = true;
+                    group.add(catBody);
+                    const catHead = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.2 * scale, 0.2 * scale, 0.2 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0x9b7a60, roughness: 0.6 })
+                    );
+                    catHead.position.set(0.32 * scale, 0.12 * scale, 0);
+                    catHead.castShadow = true;
+                    group.add(catHead);
+                    const earGeometry = new THREE.ConeGeometry(0.06 * scale, 0.12 * scale, 4);
+                    const earMaterial = new THREE.MeshStandardMaterial({ color: 0x7f5d4b, roughness: 0.7 });
+                    const earLeft = new THREE.Mesh(earGeometry, earMaterial);
+                    earLeft.position.set(0.28 * scale, 0.26 * scale, 0.07 * scale);
+                    earLeft.rotation.z = Math.PI / 8;
+                    group.add(earLeft);
+                    const earRight = earLeft.clone();
+                    earRight.position.z = -0.07 * scale;
+                    group.add(earRight);
+                    const tail = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.03 * scale, 0.04 * scale, 0.35 * scale, 6),
+                        new THREE.MeshStandardMaterial({ color: 0x6f4d3a, roughness: 0.7 })
+                    );
+                    tail.rotation.z = Math.PI / 3;
+                    tail.position.set(-0.3 * scale, 0.08 * scale, 0);
+                    tail.castShadow = true;
+                    group.add(tail);
+                    break;
+
+                case 'grandma':
+                    const dress = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.18 * scale, 0.28 * scale, 0.55 * scale, 6),
+                        new THREE.MeshStandardMaterial({ color: 0x7d6fd3, roughness: 0.6 })
+                    );
+                    dress.castShadow = true;
+                    dress.position.y = 0.1 * scale;
+                    group.add(dress);
+                    const head = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.14 * scale, 8, 8),
+                        new THREE.MeshStandardMaterial({ color: 0xf1d1b5, roughness: 0.5 })
+                    );
+                    head.position.y = 0.45 * scale;
+                    head.castShadow = true;
+                    group.add(head);
+                    const hair = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.2 * scale, 0.08 * scale, 0.2 * scale),
+                        new THREE.MeshStandardMaterial({ color: 0xcfcfd3, roughness: 0.7 })
+                    );
+                    hair.position.y = 0.52 * scale;
+                    group.add(hair);
+                    const cane = new THREE.Mesh(
+                        new THREE.CylinderGeometry(0.03 * scale, 0.03 * scale, 0.5 * scale, 6),
+                        new THREE.MeshStandardMaterial({ color: 0x5b3b1b, roughness: 0.8 })
+                    );
+                    cane.position.set(-0.18 * scale, 0.15 * scale, 0.22 * scale);
+                    cane.rotation.z = Math.PI / 12;
+                    group.add(cane);
+                    break;
+
                 case 'express':
                     geometry = new THREE.BoxGeometry(0.5 * scale, 0.3 * scale, 0.4 * scale);
                     material = new THREE.MeshStandardMaterial({
@@ -2819,6 +2894,18 @@
                     shape = new CANNON.Cylinder(0.25 * scale, 0.25 * scale, 0.5 * scale, 12);
                     mass = 1.8;
                     break;
+                case 'table':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.35 * scale, 0.22 * scale, 0.2 * scale));
+                    mass = 2.2;
+                    break;
+                case 'cat':
+                    shape = new CANNON.Box(new CANNON.Vec3(0.25 * scale, 0.18 * scale, 0.12 * scale));
+                    mass = 1.2;
+                    break;
+                case 'grandma':
+                    shape = new CANNON.Cylinder(0.2 * scale, 0.28 * scale, 0.6 * scale, 8);
+                    mass = 2.1;
+                    break;
                 case 'express':
                     shape = new CANNON.Box(new CANNON.Vec3(0.25 * scale, 0.15 * scale, 0.2 * scale));
                     mass = 1.6;
@@ -2867,11 +2954,11 @@
 
         // Launch a package
         const packageVariants = {
-            cube: ['cube', 'cereal', 'cube'],
-            sphere: ['sphere', 'plant'],
-            pizza: ['pizza', 'suitcase', 'duffel'],
+            cube: ['cube', 'cereal', 'table'],
+            sphere: ['sphere', 'plant', 'cat'],
+            pizza: ['pizza', 'suitcase', 'duffel', 'grandma'],
             fragile: ['fragile'],
-            express: ['express', 'suitcase', 'plant']
+            express: ['express', 'suitcase', 'plant', 'cat']
         };
 
         function selectPackageVariant(type) {
@@ -3876,13 +3963,6 @@
             }
         }
 
-        // Handle mouse movement for power
-        function handleMouseMove(e) {
-            const normalizedY = 1 - (e.clientY / window.innerHeight);
-            gameState.power = Math.max(0.2, Math.min(1, normalizedY));
-            elements.powerFill.style.height = (gameState.power * 100) + '%';
-        }
-
         // Pause game
         function pauseGame() {
             gameState.isPaused = true;
@@ -4233,7 +4313,6 @@
             elements.quitBtn.addEventListener('click', goToMenu);
             document.addEventListener('keydown', handleKeyDown);
             document.addEventListener('keyup', handleKeyUp);
-            document.addEventListener('mousemove', handleMouseMove);
             elements.musicUpload.addEventListener('change', handleMusicUpload);
             elements.analysisUpload.addEventListener('change', handleAnalysisUpload);
             elements.analyzeBtn.addEventListener('click', analyzeCurrentTrack);
