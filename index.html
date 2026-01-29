@@ -1364,9 +1364,9 @@
         const FRAGILE_MULTIPLIER_DURATION = 8000;
         const COMBO_NOTE_GAP = 240;
         const MISS_SCORE_PENALTY = 50;
-        const PERFORMANCE_WINDOW_MS = 8000;
-        const PERFORMANCE_REQUIRED_ACCURACY = 0.6;
-        const PERFORMANCE_DANGER_DURATION = 4000;
+        const PERFORMANCE_WINDOW_MS = 20000;
+        const PERFORMANCE_REQUIRED_ACCURACY = 0.05;
+        const PERFORMANCE_DANGER_DURATION = 20000;
         const PERFORMANCE_MIN_NOTES = 6;
         const TRUCK_DIMENSIONS = {
             width: 2.4,
@@ -3533,7 +3533,7 @@
             updatePerformanceIndicator(now);
 
             if (gameState.dangerTimer >= PERFORMANCE_DANGER_DURATION) {
-                endGame('Rythme trop instable : la tournée est interrompue.');
+                endGame('Moins de 5% de réussite pendant 20 secondes : la tournée est interrompue.');
             }
         }
 
