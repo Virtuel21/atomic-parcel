@@ -789,6 +789,47 @@
             margin-bottom: 40px;
         }
 
+        .pause-settings {
+            width: min(420px, 80vw);
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 18px;
+            padding: 20px 24px;
+            margin-bottom: 30px;
+            color: #fff;
+            text-align: left;
+        }
+
+        .pause-settings h2 {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #ff9f6e;
+            margin-bottom: 16px;
+        }
+
+        .pause-slider {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .pause-slider:last-child {
+            margin-bottom: 0;
+        }
+
+        .pause-slider label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.95rem;
+        }
+
+        .pause-slider input[type="range"] {
+            width: 100%;
+            accent-color: #ff6b35;
+        }
+
         /* Game over screen */
         #game-over-screen {
             position: absolute;
@@ -1119,6 +1160,23 @@
         <!-- Pause Screen -->
         <div id="pause-screen">
             <h1>PAUSE</h1>
+            <div class="pause-settings">
+                <h2>Audio</h2>
+                <div class="pause-slider">
+                    <label for="music-volume">
+                        Son du jeu
+                        <span id="music-volume-value">30%</span>
+                    </label>
+                    <input type="range" id="music-volume" min="0" max="100" value="30">
+                </div>
+                <div class="pause-slider">
+                    <label for="sfx-volume">
+                        Bruitages
+                        <span id="sfx-volume-value">70%</span>
+                    </label>
+                    <input type="range" id="sfx-volume" min="0" max="100" value="70">
+                </div>
+            </div>
             <div class="menu-buttons">
                 <button class="menu-btn" id="resume-btn">REPRENDRE</button>
                 <button class="menu-btn secondary" id="quit-btn">QUITTER</button>
@@ -1379,6 +1437,10 @@
             analysisMessage: document.getElementById('analysis-message'),
             analysisProgress: document.getElementById('analysis-progress'),
             analysisProgressFill: document.getElementById('analysis-progress-fill'),
+            musicVolume: document.getElementById('music-volume'),
+            musicVolumeValue: document.getElementById('music-volume-value'),
+            sfxVolume: document.getElementById('sfx-volume'),
+            sfxVolumeValue: document.getElementById('sfx-volume-value'),
             fragileMultiplier: document.getElementById('fragile-multiplier'),
             gameOverMessage: document.getElementById('game-over-message'),
             performanceMeter: document.getElementById('performance-meter'),
@@ -1401,6 +1463,7 @@
         // Audio context
         let audioContext;
         let gainNode;
+        let sfxGainNode;
         let analyserNode;
         let userTrack;
         let userTrackSource;
@@ -1409,6 +1472,8 @@
         let pendingTrackPlayback = false;
         let lastUploadedTrackName = '';
         let soundEffects = null;
+        let musicVolume = 0.3;
+        let sfxVolume = 0.7;
 
         const defaultTracks = {
             'atomic-parcel': {
@@ -2134,8 +2199,11 @@
         function initAudio() {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             gainNode = audioContext.createGain();
+            sfxGainNode = audioContext.createGain();
             gainNode.connect(audioContext.destination);
-            gainNode.gain.value = 0.3;
+            sfxGainNode.connect(audioContext.destination);
+            gainNode.gain.value = musicVolume;
+            sfxGainNode.gain.value = sfxVolume;
         }
 
         function initSoundEffects() {
@@ -2146,7 +2214,8 @@
             };
             Object.values(soundEffects).forEach((audio) => {
                 audio.preload = 'auto';
-                audio.volume = 0.7;
+                audio.dataset.baseVolume = '0.7';
+                audio.volume = 0.7 * sfxVolume;
             });
         }
 
@@ -2154,13 +2223,56 @@
             if (!soundEffects) return;
             const audio = soundEffects[key];
             if (!audio) return;
-            if (volume !== null) {
-                audio.volume = volume;
-            }
+            const baseVolume = Number.parseFloat(audio.dataset.baseVolume || '1');
+            const targetVolume = volume !== null ? volume : baseVolume;
+            audio.volume = targetVolume * sfxVolume;
             audio.currentTime = 0;
             const playPromise = audio.play();
             if (playPromise && typeof playPromise.catch === 'function') {
                 playPromise.catch(() => {});
+            }
+        }
+
+        function clampVolume(value) {
+            return Math.max(0, Math.min(1, value));
+        }
+
+        function updateVolumeLabel(labelElement, value) {
+            if (!labelElement) return;
+            labelElement.textContent = `${Math.round(value * 100)}%`;
+        }
+
+        function applyMusicVolume(value, { persist = true } = {}) {
+            musicVolume = clampVolume(value);
+            if (gainNode) {
+                gainNode.gain.value = musicVolume;
+            }
+            updateVolumeLabel(elements.musicVolumeValue, musicVolume);
+            if (elements.musicVolume) {
+                elements.musicVolume.value = Math.round(musicVolume * 100).toString();
+            }
+            if (persist) {
+                localStorage.setItem('atomic-parcel-music-volume', musicVolume.toString());
+            }
+        }
+
+        function applySfxVolume(value, { persist = true } = {}) {
+            sfxVolume = clampVolume(value);
+            if (sfxGainNode) {
+                sfxGainNode.gain.value = sfxVolume;
+            }
+            if (soundEffects) {
+                Object.values(soundEffects).forEach((audio) => {
+                    const baseVolume = Number.parseFloat(audio.dataset.baseVolume || '1');
+                    audio.volume = baseVolume * sfxVolume;
+                });
+            }
+            updateVolumeLabel(elements.sfxVolumeValue, sfxVolume);
+            if (elements.sfxVolume) {
+                elements.sfxVolume.value = Math.round(sfxVolume * 100).toString();
+            }
+            if (persist) {
+                localStorage.setItem('atomic-parcel-sfx-volume', sfxVolume.toString());
             }
         }
 
@@ -2683,7 +2795,7 @@
             oscGain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
 
             osc.connect(oscGain);
-            oscGain.connect(gainNode);
+            oscGain.connect(sfxGainNode || gainNode);
 
             osc.start();
             osc.stop(audioContext.currentTime + duration);
@@ -4561,6 +4673,16 @@
             updateDifficultySelection(currentDifficulty);
             updateGameDuration();
             updateFragileMultiplierDisplay();
+            const savedMusicVolume = Number.parseFloat(localStorage.getItem('atomic-parcel-music-volume'));
+            if (Number.isFinite(savedMusicVolume)) {
+                musicVolume = clampVolume(savedMusicVolume);
+            }
+            const savedSfxVolume = Number.parseFloat(localStorage.getItem('atomic-parcel-sfx-volume'));
+            if (Number.isFinite(savedSfxVolume)) {
+                sfxVolume = clampVolume(savedSfxVolume);
+            }
+            applyMusicVolume(musicVolume, { persist: false });
+            applySfxVolume(sfxVolume, { persist: false });
 
             // Event listeners
             elements.startBtn.addEventListener('click', startGame);
@@ -4568,6 +4690,12 @@
             elements.menuBtn.addEventListener('click', goToMenu);
             elements.resumeBtn.addEventListener('click', resumeGame);
             elements.quitBtn.addEventListener('click', goToMenu);
+            elements.musicVolume.addEventListener('input', (event) => {
+                applyMusicVolume(Number(event.target.value) / 100);
+            });
+            elements.sfxVolume.addEventListener('input', (event) => {
+                applySfxVolume(Number(event.target.value) / 100);
+            });
             document.addEventListener('keydown', handleKeyDown);
             document.addEventListener('keyup', handleKeyUp);
             elements.musicUpload.addEventListener('change', handleMusicUpload);
