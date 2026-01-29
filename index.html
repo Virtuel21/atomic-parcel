@@ -1070,6 +1070,8 @@
                     <select id="track-select">
                         <option value="atomic-parcel">Atomic Parcel</option>
                         <option value="atomic-parcel-2">Atomic Parcel 2</option>
+                        <option value="atomic-parcel-3">Atomic Parcel 3</option>
+                        <option value="atomic-parcel-4">Atomic Parcel 4</option>
                         <option value="upload">Import personnalisé</option>
                         <option value="none">Aucune</option>
                     </select>
@@ -1406,6 +1408,7 @@
         let analysisInProgress = false;
         let pendingTrackPlayback = false;
         let lastUploadedTrackName = '';
+        let soundEffects = null;
 
         const defaultTracks = {
             'atomic-parcel': {
@@ -1415,6 +1418,14 @@
             'atomic-parcel-2': {
                 name: 'Atomic Parcel 2',
                 url: 'atomic parcel-2.mp3'
+            },
+            'atomic-parcel-3': {
+                name: 'Atomic Parcel 3',
+                url: 'atomic parcel-3.mp3'
+            },
+            'atomic-parcel-4': {
+                name: 'Atomic Parcel 4',
+                url: 'atomic parcel-4.mp3'
             }
         };
 
@@ -2125,6 +2136,32 @@
             gainNode = audioContext.createGain();
             gainNode.connect(audioContext.destination);
             gainNode.gain.value = 0.3;
+        }
+
+        function initSoundEffects() {
+            if (soundEffects) return;
+            soundEffects = {
+                fragileBreak: new Audio('hell-yeah_dBN35mW.mp3'),
+                gameOver: new Audio('jeu-a-la-con.mp3')
+            };
+            Object.values(soundEffects).forEach((audio) => {
+                audio.preload = 'auto';
+                audio.volume = 0.7;
+            });
+        }
+
+        function playSoundEffect(key, { volume = null } = {}) {
+            if (!soundEffects) return;
+            const audio = soundEffects[key];
+            if (!audio) return;
+            if (volume !== null) {
+                audio.volume = volume;
+            }
+            audio.currentTime = 0;
+            const playPromise = audio.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => {});
+            }
         }
 
         function updateTrackStatus(name, active = false) {
@@ -3283,6 +3320,10 @@
 
             // Show feedback
             showFeedback(`BOOM! +${breakPoints}`, 'break', window.innerWidth / 2, window.innerHeight / 2 - 100);
+
+            if (packageData.type === 'fragile') {
+                playSoundEffect('fragileBreak');
+            }
 
             // Play break sound - more epic with combo
             const basePitch = 100 - gameState.comboPower * 10;
@@ -4461,6 +4502,7 @@
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
+            initSoundEffects();
             pendingTrackPlayback = false;
             if (analysisInProgress) {
                 pendingTrackPlayback = true;
@@ -4480,6 +4522,7 @@
             gameState.fragileMultiplier = 1;
             gameState.fragileTimer = 0;
             updateFragileMultiplierDisplay();
+            playSoundEffect('gameOver');
 
             // Show game over screen
             elements.gameOverScreen.style.display = 'flex';
